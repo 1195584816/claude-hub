@@ -1,0 +1,15 @@
+{
+  "_说明": "复制成 notify-config.json 后填写。也可以直接在客户端 ⚙️ 设置里填,不用碰这个文件。",
+  "wecom": {
+    "enabled": false,
+    "key": "企业微信群机器人 webhook 里 key= 后面那串"
+  },
+  "feishu": {
+    "enabled": false,
+    "webhook": "https://open.feishu.cn/open-apis/bot/v2/hook/xxxxxxxx"
+  },
+  "serverchan": {
+    "enabled": false,
+    "sendkey": "sct.ftqq.com 微信扫码登录后拿到的 SendKey"
+  }
+}

@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0d1120">
+<title>Claude 手机控制台</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+:root{--bg:#0b0f1c;--card:#151b2e;--card2:#1c2540;--line:rgba(255,255,255,.08);--tx:#e9ecf5;--tx2:#98a0bd;--tx3:#646c8a;--acc:#3fd598;--red:#f87171}
+body{background:var(--bg);color:var(--tx);font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden;font-size:15px}
+.top{display:flex;align-items:center;gap:10px;padding:calc(env(safe-area-inset-top) + 10px) 14px 10px;background:rgba(13,17,32,.95);border-bottom:1px solid var(--line);flex-shrink:0}
+.top b{font-size:15px;color:var(--acc)}
+.top .sub{font-size:11px;color:var(--tx3);margin-left:auto}
+.back{padding:6px 10px;border-radius:8px;background:var(--card2);font-size:13px;color:var(--tx2)}
+.body{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:12px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:13px 15px;margin-bottom:10px}
+.card:active{background:var(--card2)}
+.row{display:flex;align-items:center;gap:10px}
+.dot{width:9px;height:9px;border-radius:99px;flex-shrink:0}
+.dot.run{background:var(--acc);box-shadow:0 0 8px var(--acc);animation:bl 1.3s infinite}
+.dot.done{background:var(--red)}
+.dot.idle{background:var(--tx3);opacity:.5}
+@keyframes bl{0%,100%{opacity:1}50%{opacity:.35}}
+.t1{font-size:15px;font-weight:600;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.t2{font-size:12px;color:var(--tx3);margin-top:5px}
+.badge{background:var(--card2);color:var(--tx2);border-radius:6px;padding:2px 8px;font-size:11px}
+.badge.red{background:rgba(248,113,113,.18);color:var(--red)}
+.term{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;background:#080b14;padding:10px 12px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12.5px;line-height:1.55;white-space:pre-wrap;word-break:break-all;color:#d7dcea}
+.bar{display:flex;gap:6px;padding:8px 10px;overflow-x:auto;background:var(--card);border-top:1px solid var(--line);flex-shrink:0}
+.key{flex-shrink:0;padding:8px 14px;border-radius:10px;background:var(--card2);color:var(--tx);font-size:14px;font-weight:600;border:1px solid var(--line)}
+.key:active{background:var(--acc);color:#04140d}
+.key.y{color:var(--acc)} .key.n{color:var(--red)}
+.inbar{display:flex;gap:8px;padding:10px 10px calc(env(safe-area-inset-bottom) + 10px);background:var(--card);border-top:1px solid var(--line);flex-shrink:0}
+.inbar input{flex:1;background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:12px 14px;color:var(--tx);font-size:16px;outline:none}
+.inbar button{background:var(--acc);color:#04140d;border:none;border-radius:12px;padding:0 20px;font-size:15px;font-weight:700}
+.pair{padding:40px 24px;text-align:center}
+.pair h2{font-size:19px;margin-bottom:8px}
+.pair p{color:var(--tx3);font-size:13px;line-height:1.7;margin-bottom:22px}
+.pair input{width:100%;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;color:var(--tx);font-size:26px;text-align:center;letter-spacing:10px;outline:none;font-weight:700}
+.pair button{width:100%;margin-top:14px;background:var(--acc);color:#04140d;border:none;border-radius:14px;padding:15px;font-size:16px;font-weight:700}
+.msg{color:var(--red);font-size:13px;margin-top:12px;min-height:18px}
+.empty{text-align:center;color:var(--tx3);font-size:13px;padding:50px 0}
+.sec{font-size:11px;color:var(--tx3);letter-spacing:1.5px;margin:14px 4px 8px;font-weight:700}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+const S = { token: localStorage.getItem('hubtoken') || '', view: 'list', term: null, readonly: false, es: null, buf: '' };
+const $ = h => { document.getElementById('app').innerHTML = h; };
+const esc = s => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+async function api(p, opt) {
+  const url = p + (p.includes('?') ? '&' : '?') + 'token=' + encodeURIComponent(S.token);
+  const r = await fetch(url, opt || {});
+  if (r.status === 401) { S.token = ''; localStorage.removeItem('hubtoken'); renderPair(); throw new Error('unauth'); }
+  return r.json();
+}
+function post(p, body) { return api(p, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); }
+
+// ===== 配对 =====
+function renderPair(msg) {
+  $(`<div class="pair">
+    <h2>连接到电脑</h2>
+    <p>在电脑的 Claude 总控里打开<br><b>⚙️ 设置 → 手机控制台</b>,把 6 位配对码填进来</p>
+    <input id="code" inputmode="numeric" maxlength="6" placeholder="······">
+    <button onclick="doPair()">连接</button>
+    <div class="msg">${esc(msg || '')}</div>
+  </div>`);
+  setTimeout(() => document.getElementById('code').focus(), 200);
+}
+async function doPair() {
+  const code = document.getElementById('code').value.trim();
+  if (code.length !== 6) return renderPair('请输入 6 位数字');
+  try {
+    const r = await fetch('/api/pair', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code, name: (navigator.userAgent.match(/(iPhone|iPad|Android|Windows|Mac)/) || ['手机'])[0] })
+    }).then(x => x.json());
+    if (!r.ok) return renderPair(r.msg || '连接失败');
+    S.token = r.token; S.readonly = r.readonly;
+    localStorage.setItem('hubtoken', r.token);
+    loadList();
+  } catch (e) { renderPair('连不上电脑,检查是否同一 WiFi'); }
+}
+
+// ===== 列表 =====
+async function loadList() {
+  S.view = 'list';
+  if (S.es) { S.es.close(); S.es = null; }
+  let d;
+  try { d = await api('/api/state'); } catch { return; }
+  S.readonly = d.readonly;
+  const runs = d.terminals || [], projs = d.projects || [], feed = d.feed || [];
+  $(`<div class="top"><b>Claude 总控</b><span class="sub">${S.readonly ? '只读模式 · ' : ''}${runs.length} 个在跑</span></div>
+  <div class="body">
+    ${runs.length ? `<div class="sec">进行中</div>` + runs.map(t => `
+      <div class="card" onclick="openTerm('${t.id}','${esc(t.title).replace(/'/g, "\\'")}')">
+        <div class="row"><i class="dot run"></i><span class="t1">${esc(t.title)}</span></div>
+        <div class="t2">${esc(t.proj)}</div>
+      </div>`).join('') : ''}
+    ${feed.length ? `<div class="sec">最近完成</div>` + feed.slice(0, 6).map(f => `
+      <div class="card">
+        <div class="row"><i class="dot done"></i><span class="t1">${esc(f.proj)}</span><span class="badge">${esc(String(f.ts).slice(11, 16))}</span></div>
+        ${f.sess ? `<div class="t2">${esc(String(f.sess).slice(0, 40))}</div>` : ''}
+        <div class="t2">${esc(String(f.task || '').slice(0, 60))}</div>
+      </div>`).join('') : ''}
+    <div class="sec">全部项目</div>
+    ${projs.map(p => `
+      <div class="card" onclick="openProj('${esc(p.path).replace(/\\/g, '\\\\').replace(/'/g, "\\'")}','${esc(p.short).replace(/'/g, "\\'")}')">
+        <div class="row"><i class="dot ${p.status}"></i><span class="t1">${esc(p.short)}</span>
+        ${p.unread ? `<span class="badge red">${p.unread}</span>` : ''}</div>
+        <div class="t2">${p.sessCount} 个会话${p.running ? ' · ' + p.running + ' 在跑' : ''}</div>
+      </div>`).join('') || '<div class="empty">还没有项目</div>'}
+  </div>`);
+}
+async function openProj(projPath, short) {
+  if (S.readonly) return alert('只读模式不能开会话');
+  const r = await post('/api/open', { projPath, short });
+  if (r && r.id) openTerm(r.id, short);
+}
+
+// ===== 终端 =====
+function openTerm(id, title) {
+  S.view = 'term'; S.term = id; S.buf = '';
+  const keys = [
+    ['y 同意', 'y\r', 'y'], ['n 拒绝', 'n\r', 'n'], ['回车', '\r', ''],
+    ['Esc', '\x1b', ''], ['继续', '继续\r', ''], ['Ctrl+C', '\x03', ''], ['↑', '\x1b[A', '']
+  ];
+  const bar = S.readonly ? '' :
+    '<div class="bar">' + keys.map((k, i) => `<span class="key ${k[2]}" onclick="sendKey(${i})">${esc(k[0])}</span>`).join('') + '</div>' +
+    '<div class="inbar"><input id="cmd" placeholder="输入指令…" onkeydown="if(event.key===\'Enter\')sendInput()"><button onclick="sendInput()">发送</button></div>';
+  S.keys = keys;
+  $(`<div class="top"><span class="back" onclick="loadList()">‹ 返回</span><b style="font-size:14px">${esc(title || '会话')}</b></div>
+  <div class="term" id="out"></div>` + bar);
+  if (S.es) S.es.close();
+  S.es = new EventSource('/api/stream?token=' + encodeURIComponent(S.token) + '&id=' + encodeURIComponent(id));
+  S.es.addEventListener('hist', e => { const m = JSON.parse(e.data); S.buf = m.data || ''; paint(); });
+  S.es.addEventListener('data', e => { const m = JSON.parse(e.data); if (m.id === S.term) { S.buf += m.data; if (S.buf.length > 60000) S.buf = S.buf.slice(-40000); paint(); } });
+}
+// 去掉 ANSI 控制序列,手机上只看纯文本
+function clean(s) {
+  return String(s)
+    .replace(/\x1b\][^\x07\x1b]*(\x07|\x1b\\)/g, '')
+    .replace(/\x1b\[[0-9;?]*[a-zA-Z]/g, '')
+    .replace(/\x1b[()][0-9A-B]/g, '')
+    .replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g, '');
+}
+function paint() {
+  const el = document.getElementById('out');
+  if (!el) return;
+  const near = el.scrollTop + el.clientHeight > el.scrollHeight - 80;
+  el.textContent = clean(S.buf).split('\n').slice(-400).join('\n');
+  if (near) el.scrollTop = el.scrollHeight;
+}
+function send(d) { if (S.term) post('/api/input', { id: S.term, data: d }); }
+function sendKey(i) { const k = S.keys && S.keys[i]; if (k) send(k[1]); }
+function sendInput() {
+  const i = document.getElementById('cmd');
+  if (!i || !i.value.trim()) return;
+  send(i.value + '\r');
+  i.value = '';
+}
+// 启动
+if (S.token) loadList().catch(() => renderPair()); else renderPair();
+setInterval(() => { if (S.view === 'list' && S.token) loadList().catch(() => {}); }, 8000);
+</script>
+</body>
+</html>

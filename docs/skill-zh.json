@@ -1,0 +1,35 @@
+{
+  "_说明": "技能的中文注解。面板右栏显示时优先用这里的中文;这里没有的,就显示技能自己的 description。技能本身的英文描述不要改——那是模型判断该不该调用它的依据,改了会影响识别。新装的技能想加中文说明,在下面补一行即可,存盘后面板刷新就生效。",
+
+  "hyperframes": "视频制作总入口 · 任何做视频/动画/动效的活都先读它,由它决定走哪个子流程",
+  "hyperframes-core": "视频工程的基本规矩 · 时间轴属性、轨道、子合成、变量、渲染确定性",
+  "hyperframes-animation": "全部动效知识 · 运动规则、场景蓝图、转场,含 GSAP/Lottie/Three.js 等七种引擎",
+  "hyperframes-keyframes": "关键帧运镜 · 推近推远、变焦、重构图、Ken Burns、路径遮罩、SVG 变形",
+  "hyperframes-audio": "音频混音 · 淡入淡出、交叉淡化、音量自动化、人声闪避、EQ/压缩/混响",
+  "hyperframes-creative": "创意方向(非动效)· 设计规范、配色、字体、旁白、节拍规划、品牌风格",
+  "hyperframes-cli": "命令行全流程 · 初始化、预览、检查、渲染、发布、云渲染、排障",
+  "hyperframes-registry": "装现成的区块和组件 · 找到、安装、接进你的视频工程",
+
+  "general-video": "自定义视频 · 没有专用流程时用:多场景长片、品牌混剪、片头卡、素材重组",
+  "motion-graphics": "10 秒内短动效 · 动态字幕、数字跳动、图表冲击、Logo 演绎、下三分之一条、动态地图",
+  "music-to-video": "音乐卡点片 · 一首歌变成卡节拍的视频:歌词视频、图片幻灯、动感宣传片",
+  "faceless-explainer": "无人出镜解说片 · 一段文字变成排版+图解+数据可视化的视频",
+  "product-launch-video": "产品宣传片 · 产品页/营销页变成 promo:SaaS 宣传、功能揭晓、产品演示、网站导览",
+  "pr-to-video": "代码变更讲解片 · 一个 GitHub PR 变成改动说明视频",
+  "talking-head-recut": "给口播片挂图形卡 · 动态标题、下三分之一、数据标注、引言、画中画",
+  "embedded-captions": "口播片加字幕 · 含藏在人物身后的电影感字幕和特效字幕,35 种风格",
+  "slideshow": "可交互演示文稿 · 分页、逐条揭示、分支跳转、演讲者模式",
+  "remotion-to-hyperframes": "Remotion 迁移 · 把已有的 React 视频工程翻译成 HyperFrames HTML(单向)",
+  "media-use": "素材总管 · BGM/音效/图片/图标/Logo/配音/调色 的查找、生成、转写、抠图、复用",
+  "figma": "Figma 搬运 · 把设计稿的切图、品牌色、组件、分镜搬进视频工程",
+  "seedance-20": "Seedance 2.0 视频生成 · 提示词、首尾帧、对话口型、API、价格与模型 ID",
+
+  "ai-bignews": "海外 AI 大事快报 · 抓一手消息→翻译→写成公众号图文→建草稿(只到草稿)",
+  "ai-team-orchestration": "AI 团队编排 · 起手一个新项目:多角色分工、单一真相、验证闸(薪果复盘)",
+  "surgical-edits": "外科手术式改动 · 修 bug 只改该改的,不顺手重构/格式化/扩大范围",
+  "flyway-migration-discipline": "Flyway 迁移纪律 · 版本号唯一、配置先种子、清库可重建(薪果复盘)",
+  "thirdparty-adapter-pattern": "第三方接入模式 · 支付/OCR/实名/短信/地图:端口+适配器+默认关+降级不阻断",
+  "uniapp-cross-platform": "uni-app 跨端手册 · App/H5/小程序的能力边界与踩坑(薪果复盘)",
+  "win-shell-encoding-gotchas": "Windows 编码坑 · BOM/GBK/中文路径/heredoc/tar/curl 的中文乱码集合",
+  "zhipin-billing-audit": "薪果计费审查 · 动到扣费/充值/余额/提成/分红的代码都该跑一遍"
+}

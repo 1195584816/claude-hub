@@ -1,0 +1,55 @@
+appId: com.sanyue.claudehub
+productName: ClaudeHub
+copyright: Copyright © 2026 sanyue
+
+directories:
+  output: release
+  buildResources: build
+
+files:
+  - "**/*"
+  - "!release*/**"
+  - "!dist*/**"
+  - "!test/**"
+  - "!design-ref/**"
+  - "!pastes/**"
+  - "!docs/私*"
+  - "!*.json.bak*"
+  - "!projects.json"
+  - "!notify-config.json"
+  - "!session-titles.json"
+  - "!usage-cache.json"
+  - "!prompts.json"
+  - "!修改记录.md"
+  # 字体只保留简体中文常规/中等/半粗三个字重,其余语种全部剔除(43MB → 数 MB)
+  - "!node_modules/misans/lib/!(Normal)/**"
+  - "!node_modules/misans/lib/Normal/!(MiSans-Regular*|MiSans-Medium*|MiSans-Semibold*)"
+
+asar: true
+asarUnpack:
+  - "node_modules/@lydell/node-pty/**"
+  - "node_modules/node-pty-*/**"
+
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  icon: build/icon.ico
+  artifactName: ${productName}-${version}-win-x64.${ext}
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Claude 总控
+  deleteAppDataOnUninstall: false
+
+publish:
+  provider: github
+  owner: Teminuosi
+  repo: claude-hub
+  releaseType: release
+
+compression: maximum

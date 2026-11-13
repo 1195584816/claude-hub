@@ -1,0 +1,39 @@
+{
+  "name": "claude-hub",
+  "version": "1.0.0",
+  "description": "Claude Code 桌面驾驶舱:项目/会话/记忆一屏掌控,内嵌真终端,完成通知与 token 账本",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "sync": "node scripts/sync-dist.js",
+    "sync:check": "node scripts/sync-dist.js --check",
+    "test": "node --test test/*.test.js",
+    "dist": "electron-builder --win",
+    "release": "electron-builder --win --publish always"
+  },
+  "license": "AGPL-3.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Teminuosi/claude-hub.git"
+  },
+  "keywords": [
+    "claude",
+    "claude-code",
+    "gui",
+    "electron",
+    "ai",
+    "terminal"
+  ],
+  "devDependencies": {
+    "electron": "^43.2.0",
+    "electron-builder": "^26.15.3"
+  },
+  "dependencies": {
+    "@lydell/node-pty": "^1.2.0-beta.14",
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/xterm": "^6.0.0",
+    "electron-updater": "^6.8.9",
+    "misans": "^4.1.0",
+    "qrcode": "^1.5.4"
+  }
+}

@@ -1,0 +1,954 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Claude Code 进阶玩法全图</title>
+<style>
+:root{
+  --paper:#F4F6F9; --surface:#FFFFFF; --surface-2:#EDF1F6; --sunken:#E4EAF1;
+  --ink:#151B24; --ink-2:#3E4956; --ink-3:#6B7684; --ink-4:#96A0AD;
+  --line:#D8E0E9; --line-2:#C3CDDA;
+  --cool:#0B6E8A; --cool-soft:#E2F0F5;
+  --hot:#9A5312; --hot-soft:#F7EBDC;
+  --warn:#A32A32; --warn-soft:#F8E7E8;
+  --ok:#1F6B4B; --ok-soft:#E3F2EA;
+  --code-bg:#EDF1F6; --code-ink:#1F2A36;
+  --shadow:0 1px 2px rgba(21,27,36,.06), 0 8px 24px rgba(21,27,36,.05);
+  --sans:"Segoe UI Variable Display","Segoe UI","Microsoft YaHei UI","PingFang SC","Hiragino Sans GB",system-ui,-apple-system,sans-serif;
+  --mono:"Cascadia Mono","JetBrains Mono","SF Mono",Consolas,"Liberation Mono",monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#0E1319; --surface:#161D26; --surface-2:#1D2731; --sunken:#111820;
+    --ink:#E8EDF3; --ink-2:#B8C3CF; --ink-3:#8A97A5; --ink-4:#66727F;
+    --line:#28323D; --line-2:#36434F;
+    --cool:#4FC3E0; --cool-soft:#12303A;
+    --hot:#E3A052; --hot-soft:#2E2415;
+    --warn:#EF8189; --warn-soft:#3A1D20;
+    --ok:#5FC495; --ok-soft:#14291F;
+    --code-bg:#111820; --code-ink:#D3DCE6;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.28);
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#0E1319; --surface:#161D26; --surface-2:#1D2731; --sunken:#111820;
+  --ink:#E8EDF3; --ink-2:#B8C3CF; --ink-3:#8A97A5; --ink-4:#66727F;
+  --line:#28323D; --line-2:#36434F;
+  --cool:#4FC3E0; --cool-soft:#12303A;
+  --hot:#E3A052; --hot-soft:#2E2415;
+  --warn:#EF8189; --warn-soft:#3A1D20;
+  --ok:#5FC495; --ok-soft:#14291F;
+  --code-bg:#111820; --code-ink:#D3DCE6;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.28);
+}
+
+*{box-sizing:border-box;}
+body{margin:0; background:var(--paper); color:var(--ink); font-family:var(--sans); font-size:16.5px; line-height:1.78; -webkit-font-smoothing:antialiased;}
+code,kbd,pre,.mono{font-family:var(--mono);}
+
+.wrap{max-width:1160px; margin:0 auto; padding:0 28px 96px; display:grid; grid-template-columns:200px minmax(0,1fr); gap:52px; align-items:start;}
+@media (max-width:940px){ .wrap{grid-template-columns:minmax(0,1fr); gap:0;} .rail{display:none;} }
+
+.rail{position:sticky; top:0; padding:48px 0; max-height:100vh; overflow-y:auto;}
+.rail .rl{font-size:10.5px; letter-spacing:.16em; text-transform:uppercase; color:var(--ink-4); font-weight:700; margin-bottom:14px;}
+.rail a{display:flex; gap:9px; align-items:baseline; text-decoration:none; color:var(--ink-3); font-size:13.5px; padding:5px 0 5px 11px; line-height:1.4; border-left:2px solid transparent; margin-left:-13px; transition:.15s;}
+.rail a:hover{color:var(--cool); border-left-color:var(--line-2);}
+.rail a .n{font-family:var(--mono); font-size:11px; color:var(--ink-4); font-variant-numeric:tabular-nums; flex-shrink:0;}
+.rail a:focus-visible{outline:2px solid var(--cool); outline-offset:2px; border-radius:2px;}
+
+main{padding:48px 0 0; min-width:0;}
+.col{max-width:70ch;}
+
+.masthead{border-bottom:2px solid var(--ink); padding-bottom:22px;}
+.eyebrow{font-family:var(--mono); font-size:11.5px; letter-spacing:.13em; text-transform:uppercase; color:var(--cool); font-weight:600;}
+h1{font-size:clamp(32px,4.4vw,46px); line-height:1.14; letter-spacing:-.024em; font-weight:750; margin:12px 0 0; text-wrap:balance;}
+.dek{font-size:17.5px; color:var(--ink-2); margin:16px 0 0;}
+.stamp{display:flex; flex-wrap:wrap; gap:8px 20px; margin-top:20px; font-family:var(--mono); font-size:11.5px; color:var(--ink-3);}
+.stamp b{color:var(--ink-2); font-weight:600;}
+
+h2{font-size:27px; letter-spacing:-.018em; font-weight:720; margin:0; text-wrap:balance;}
+h3{font-size:19px; letter-spacing:-.01em; font-weight:690; margin:38px 0 0; text-wrap:balance;}
+h4{font-size:15.5px; font-weight:680; margin:24px 0 0;}
+p{margin:14px 0 0;}
+a{color:var(--cool);}
+strong{font-weight:690; color:var(--ink);}
+ul,ol{margin:12px 0 0; padding-left:22px;}
+li{margin:7px 0;}
+li::marker{color:var(--ink-4);}
+hr{border:0; border-top:1px solid var(--line); margin:48px 0;}
+
+code{background:var(--code-bg); color:var(--code-ink); padding:.1em .38em; border-radius:4px; font-size:.85em; border:1px solid var(--line);}
+kbd{background:var(--surface); border:1px solid var(--line-2); border-bottom-width:2px; border-radius:4px; padding:.05em .4em; font-size:.8em; color:var(--ink-2);}
+pre{background:var(--code-bg); color:var(--code-ink); border:1px solid var(--line); border-radius:8px; padding:15px 17px; overflow-x:auto; font-size:13px; line-height:1.65; margin:15px 0 0;}
+pre code{background:none; border:0; padding:0; font-size:inherit; color:inherit;}
+.cm{color:var(--ink-4);}
+.ky{color:var(--cool); font-weight:600;}
+
+section{scroll-margin-top:24px;}
+.layer{margin-top:66px;}
+.lhead{display:flex; gap:18px; align-items:flex-start; padding-bottom:14px; border-bottom:1px solid var(--line-2);}
+.lnum{font-family:var(--mono); font-size:12px; font-weight:700; color:var(--surface); background:var(--ink); border-radius:5px; padding:4px 8px; flex-shrink:0; margin-top:6px; letter-spacing:.04em;}
+.lsub{font-size:14.5px; color:var(--ink-3); margin-top:6px;}
+
+.chip{display:inline-flex; align-items:center; gap:5px; font-family:var(--mono); font-size:10.5px; font-weight:600; letter-spacing:.05em; padding:2.5px 8px; border-radius:20px; white-space:nowrap; vertical-align:middle;}
+.chip.hot{background:var(--hot-soft); color:var(--hot); border:1px solid color-mix(in srgb,var(--hot) 30%,transparent);}
+.chip.cool{background:var(--cool-soft); color:var(--cool); border:1px solid color-mix(in srgb,var(--cool) 30%,transparent);}
+.chip::before{content:''; width:5px; height:5px; border-radius:50%; background:currentColor;}
+
+/* 例子块 —— 这份文档的主体 */
+.eg{background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:20px 22px; margin-top:18px; box-shadow:var(--shadow);}
+.eg > h4{margin-top:0; font-size:15.5px; display:flex; flex-wrap:wrap; gap:10px; align-items:center;}
+.eg .path{font-family:var(--mono); font-size:12.5px; color:var(--cool); background:var(--sunken); border:1px solid var(--line); border-radius:5px; padding:1.5px 7px; font-weight:500;}
+.eg p:first-of-type{margin-top:12px;}
+
+.ba{display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:16px;}
+@media (max-width:640px){ .ba{grid-template-columns:1fr;} }
+.ba > div{border-radius:9px; padding:14px 16px; font-size:14.5px; line-height:1.66;}
+.ba .bad{background:var(--warn-soft); border:1px solid color-mix(in srgb,var(--warn) 26%,transparent);}
+.ba .good{background:var(--ok-soft); border:1px solid color-mix(in srgb,var(--ok) 26%,transparent);}
+.ba .lb{display:block; font-family:var(--mono); font-size:10.5px; letter-spacing:.11em; text-transform:uppercase; font-weight:700; margin-bottom:7px;}
+.ba .bad .lb{color:var(--warn);} .ba .good .lb{color:var(--ok);}
+.ba .bad{color:var(--ink-2);} .ba .good{color:var(--ink-2);}
+.ba b{color:var(--ink);}
+
+.note{border-left:3px solid var(--cool); background:var(--surface); padding:15px 19px; margin:20px 0 0; border-radius:0 8px 8px 0; font-size:15px; color:var(--ink-2);}
+.note.hot{border-left-color:var(--hot);}
+.note.warn{border-left-color:var(--warn);}
+.note b{color:var(--ink);}
+.note .lb{display:block; font-family:var(--mono); font-size:10.5px; letter-spacing:.11em; text-transform:uppercase; font-weight:700; margin-bottom:6px; color:var(--cool);}
+.note.hot .lb{color:var(--hot);} .note.warn .lb{color:var(--warn);}
+
+.tw{overflow-x:auto; margin:18px 0 0; border:1px solid var(--line); border-radius:9px; background:var(--surface);}
+table{border-collapse:collapse; width:100%; font-size:14px; min-width:500px;}
+th,td{text-align:left; padding:11px 14px; border-bottom:1px solid var(--line); vertical-align:top; line-height:1.6;}
+th{background:var(--surface-2); font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3); font-weight:700; white-space:nowrap;}
+tr:last-child td{border-bottom:0;}
+td code{font-size:12.5px;}
+
+.tree{background:var(--sunken); border:1px solid var(--line); border-radius:9px; padding:16px 19px; margin:18px 0 0; font-family:var(--mono); font-size:12.8px; line-height:1.9; overflow-x:auto; white-space:pre; color:var(--ink-2);}
+.tree b{color:var(--cool); font-weight:600;}
+.tree i{color:var(--ink-4); font-style:normal;}
+
+.foot{margin-top:76px; padding-top:26px; border-top:2px solid var(--ink); font-size:13.5px; color:var(--ink-3);}
+@media (prefers-reduced-motion:reduce){ *{transition:none !important; animation:none !important;} }
+</style>
+</head>
+<body>
+<div class="wrap">
+<nav class="rail" aria-label="目录">
+  <div class="rl">目录</div>
+  <a href="#core"><span class="n">00</span>一句话说清</a>
+  <a href="#l1"><span class="n">01</span>每次都在的话</a>
+  <a href="#l2"><span class="n">02</span>叫了才来的话</a>
+  <a href="#l3"><span class="n">03</span>找人替你干</a>
+  <a href="#l4"><span class="n">04</span>不靠自觉的规矩</a>
+  <a href="#l5"><span class="n">05</span>自己按计划干</a>
+  <a href="#l6"><span class="n">06</span>装新本事</a>
+  <a href="#l7"><span class="n">07</span>开工时的开关</a>
+  <a href="#l8"><span class="n">08</span>玩坏了怎么救</a>
+  <a href="#cmds"><span class="n">09</span>全部命令</a>
+  <a href="#pick"><span class="n">→</span>该用哪个</a>
+  <a href="#you"><span class="n">→</span>给你的四条</a>
+  <a href="#verify"><span class="n">→</span>核实说明</a>
+</nav>
+
+<main>
+<div class="col">
+
+<header class="masthead">
+  <div class="eyebrow">Claude Code 扩展面全图</div>
+  <h1>能改 Claude 行为的<br>所有口子</h1>
+  <p class="dek">全部用大白话 + 例子说明。每个机制都回答三个问题:放在哪、怎么触发、什么时候该用它。</p>
+  <div class="stamp">
+    <span><b>核实基准</b> 本机 v2.1.227</span>
+    <span><b>命令章(09)</b> 本机 v2.1.319</span>
+    <span><b>取证</b> CLI 帮助 + 二进制内嵌 schema</span>
+  </div>
+</header>
+
+<section id="core" class="layer">
+  <div class="lhead">
+    <span class="lnum">00</span>
+    <div><h2>一句话说清全部</h2>
+    <div class="lsub">你的理解是对的:skill、技能、/reflect,就是同一样东西。</div></div>
+  </div>
+
+  <p><strong>所有花样,本质都是同一件事:一段你写好的话,在某个时机被塞给 Claude。</strong></p>
+  <p>区别只在两点——<strong>什么时候塞</strong>,和<strong>谁来决定塞</strong>。就这么简单。理解了这两句,下面所有东西都是它的变体。</p>
+
+  <div class="tw"><table>
+    <thead><tr><th>好比</th><th>对应的机制</th><th>什么时候塞</th></tr></thead>
+    <tbody>
+      <tr><td>贴在墙上的公司规章</td><td><code>CLAUDE.md</code></td><td>每次都在,不用叫</td></tr>
+      <tr><td>抽屉里的操作手册</td><td>技能 / 斜杠命令</td><td>要用了才拿出来</td></tr>
+      <tr><td>叫个同事去干</td><td>子代理</td><td>派活时</td></tr>
+      <tr><td>门禁刷卡机</td><td>钩子</td><td>固定动作自动触发</td></tr>
+      <tr><td>排班表</td><td>定时任务</td><td>到点自动跑</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>你问的那个:skill 和 /reflect 是一回事吗?</h3>
+  <p><strong>是,一模一样。</strong>这一版里,下面这两个文件<strong>效果完全相同</strong>:</p>
+
+  <div class="tree"><b>~/.claude/commands/reflect.md</b>        <i>单文件</i>
+<b>~/.claude/skills/reflect/SKILL.md</b>   <i>目录</i></div>
+
+  <p>都能打 <code>/reflect</code> 调用,都能被 Claude 自己判断着调用。<strong>唯一的差别是形态</strong>:</p>
+  <ul>
+    <li><strong>命令</strong>是一个文件——就一段话,写完就完事。</li>
+    <li><strong>技能</strong>是一个文件夹——可以在旁边放 Python 脚本、放参考表格、放模板。</li>
+  </ul>
+  <p>所以选哪个很好判断:<strong>只有一段话就用命令;要带附件才用技能。</strong>你的 <code>/reflect</code> 就一段话,用命令是对的。</p>
+
+  <div class="note">
+    <span class="lb">怎么验证的</span>
+    <code>claude --help</code> 里 <code>--disable-slash-commands</code> 这个开关,说明文字原文写的是 <b>"Disable all skills"</b>(关闭所有技能)——
+    官方自己就把斜杠命令当技能。而且我建好 <code>reflect.md</code> 之后,正在跑的会话立刻把它列进了技能清单。
+  </div>
+
+  <h3>唯一需要你上心的事:哪些是「每次都花钱」的</h3>
+  <p>Claude 每回答一次,都要把上下文里的东西重新读一遍——<strong>常驻的内容,你之后每一轮对话都在为它付费。</strong></p>
+  <p style="margin-top:16px;">
+    <span class="chip hot">常驻</span> 每次对话都塞进去。写 3000 字,你之后每一轮都花这 3000 字的钱。<br>
+    <span class="chip cool">按需</span> 平时只占一行简介,被叫到才展开全文。
+  </p>
+
+  <div class="ba">
+    <div class="bad"><span class="lb">写错了</span>
+      把「这个项目怎么部署」「后台有哪几个模块」写进 <b>CLAUDE.md</b>。<br><br>
+      这些<b>代码里本来就能看出来</b>,你却让它每轮重复计费。
+    </div>
+    <div class="good"><span class="lb">写对了</span>
+      CLAUDE.md 里只写<b>看代码看不出来的判断</b>:<br><br>
+      「这个接口线上有人在用,别改签名」<br>
+      「测试跑不过先看 JDK 版本对不对」
+    </div>
+  </div>
+</section>
+
+<section id="l1" class="layer">
+  <div class="lhead">
+    <span class="lnum">01</span>
+    <div><h2>每次都在的话 <span class="chip hot">常驻</span></h2>
+    <div class="lsub">不用你叫,每次对话自动带上。所以必须短。</div></div>
+  </div>
+
+  <div class="tree"><b>~/.claude/CLAUDE.md</b>          <i>你的总规矩,所有项目都带上</i>
+<b>项目/CLAUDE.md</b>              <i>这个项目的规矩,每次都带</i>
+<b>项目/CLAUDE.local.md</b>        <i>只在你这台机器上,不进 git</i>
+<b>项目/子目录/CLAUDE.md</b>       <i>只有动这个目录里的文件才带上</i>
+<b>项目/.claude/rules/*.md</b>     <i>拆开写;加 paths 就变按需</i></div>
+
+  <div class="eg">
+    <h4>省钱技巧一 · 规矩放到子目录里</h4>
+    <p>如果你的项目前端后端都在一起,把前端规矩写进 <code>web/CLAUDE.md</code>,后端规矩写进 <code>server/CLAUDE.md</code>。</p>
+    <p><strong>效果:</strong>Claude 改前端时只带前端规矩,改后端时只带后端规矩,互不打扰。根目录那份 <code>CLAUDE.md</code> 才是永远都带的,留给真正通用的几条。</p>
+  </div>
+
+  <div class="eg">
+    <h4>省钱技巧二 · 按文件类型触发的规矩 <span class="path">.claude/rules/*.md</span></h4>
+    <p>写一个规则文件,开头加上 <code>paths</code>,它就<strong>只在 Claude 碰到这类文件时才出现</strong>:</p>
+<pre><code><span class="cm">--- 文件:.claude/rules/前端规矩.md ---</span>
+<span class="cm">---</span>
+<span class="ky">paths</span>: [<span class="ky">"src/**/*.tsx"</span>, <span class="ky">"src/**/*.ts"</span>]
+<span class="cm">---</span>
+
+组件一律用函数式写法,禁止 class 组件。
+样式只用 tailwind,不要写 css 文件。
+</code></pre>
+    <p>Claude 改 Python 文件时,这段话根本不会出现,一分钱不花。<strong>项目大了之后这是最有效的一招。</strong></p>
+  </div>
+
+  <div class="eg">
+    <h4>把长东西挪出去 · <code>@</code> 引用</h4>
+    <p>在任何 CLAUDE.md 里写一行 <code>@某个文件.md</code>,就能把那个文件的内容接进来,而不用把正文抄进主文件。</p>
+    <p>你现在的全局 CLAUDE.md 第一行 <code>@F:\claude-project\我的档案.md</code> 就是这个用法。</p>
+  </div>
+</section>
+
+<section id="l2" class="layer">
+  <div class="lhead">
+    <span class="lnum">02</span>
+    <div><h2>叫了才来的话 <span class="chip cool">按需</span></h2>
+    <div class="lsub">技能和斜杠命令。玩法最多的一层,全在文件开头那几行设置里。</div></div>
+  </div>
+
+  <p>放哪决定谁能用:</p>
+  <div class="tree"><b>~/.claude/commands/名字.md</b>            <i>全局 · 任何项目都能 /名字</i>
+<b>项目/.claude/commands/名字.md</b>        <i>只给这个项目</i>
+<b>~/.claude/skills/名字/SKILL.md</b>       <i>全局 · 能带附件</i>
+<b>项目/.claude/skills/名字/SKILL.md</b>    <i>只给这个项目 · 能带附件</i></div>
+
+  <div class="note">
+    <span class="lb">在总控面板里直接建</span>
+    右栏现在有<b>「斜杠命令」</b>一块,点「+ 新建斜杠命令…」,填名字和说明、选全局还是本项目,建完直接进编辑器。
+    <b>存盘立刻生效,不用重启任何东西。</b>下面「技能」那块也会列出你已有的全局技能。
+  </div>
+
+  <h3>文件长什么样</h3>
+  <p>就两部分:开头 <code>---</code> 夹起来的设置,和下面的正文。<strong>正文写什么,Claude 就读到什么。</strong></p>
+
+<pre><code><span class="cm">---</span>
+<span class="ky">description</span>: 检查这次改动有没有碰到计费逻辑
+<span class="cm">---</span>
+
+把刚才的改动过一遍,只看跟钱有关的地方:
+扣费、充值、余额、提成、分红、货币换算。
+有一处对不上就停下来告诉我,别自己改。
+</code></pre>
+
+  <p>建好之后打 <code>/检查计费</code>,上面这段话就被送进去了。<strong>就这么简单——它真的只是一段话。</strong></p>
+
+  <h3>开头那几行能设什么</h3>
+  <p>每一行都是一个玩法。下面挑<strong>真正有用的</strong>讲,配例子。</p>
+
+  <div class="eg">
+    <h4><code>description</code> — 最重要的一行</h4>
+    <p>这句话有两个作用:你在斜杠菜单里看到的说明,以及 <strong>Claude 判断「要不要自己调用它」的唯一依据</strong>。</p>
+    <div class="ba">
+      <div class="bad"><span class="lb">写得含糊</span>
+        <code>description: 检查代码</code><br><br>
+        Claude 不知道什么时候该用,永远不会主动调它。
+      </div>
+      <div class="good"><span class="lb">写得具体</span>
+        <code>description: 改动涉及扣费/充值/余额/提成时,用它核对金额逻辑</code><br><br>
+        Claude 一改到计费代码就会主动想起它。
+      </div>
+    </div>
+  </div>
+
+  <div class="eg">
+    <h4><code>context: fork</code> — 脏活别脏了你的对话</h4>
+    <p><strong>问题场景:</strong>你让 Claude「把 lib/ 下所有文件读一遍,找重复代码」。它读进来的几十个文件会<strong>一直占着你的对话</strong>,后面聊几句就满了。</p>
+    <p><strong>解法:</strong>加一行 <code>context: fork</code>,它会另开一个分身去读,读完<strong>只把结论带回来</strong>,过程全部丢掉。</p>
+<pre><code><span class="cm">---</span>
+<span class="ky">description</span>: 全量扫一遍重复代码,只回结论
+<span class="ky">context</span>: fork
+<span class="ky">background</span>: false     <span class="cm"># false=当场等结果,true=跑完再通知你</span>
+<span class="cm">---</span>
+把 lib/ 下所有文件读一遍,列出重复实现的函数……
+</code></pre>
+  </div>
+
+  <div class="eg">
+    <h4><code>paths</code> — 让它自己在对的时候冒出来</h4>
+    <p>不用你记得调。给一个「数据库迁移检查清单」技能加上:</p>
+<pre><code><span class="ky">paths</span>: [<span class="ky">"**/migrations/**"</span>]</code></pre>
+    <p>以后只要 Claude 动到迁移文件,这个清单自动进场。<strong>你什么都不用做。</strong></p>
+  </div>
+
+  <div class="eg">
+    <h4><code>model</code> — 便宜活别用贵模型</h4>
+    <p>纯格式化、纯查资料这种活,加一行 <code>model: haiku</code>,省钱。复杂审查加 <code>model: opus</code>。</p>
+    <p>还有个 <code>effort</code> 控制思考深度:<code>low</code> / <code>medium</code> / <code>high</code> / <code>max</code>。</p>
+  </div>
+
+  <div class="eg">
+    <h4><code>allowed-tools</code> — 只让它干该干的</h4>
+    <p>一个「只看不改」的审查命令,可以写 <code>allowed-tools: Read, Grep, Glob</code>,它就<strong>没法改你的文件</strong>了。也能细到 <code>Bash(git *)</code> 这种——只准跑 git 命令。</p>
+  </div>
+
+  <h4>剩下的设置项,查表用</h4>
+  <div class="tw"><table>
+    <thead><tr><th>写什么</th><th>什么意思</th></tr></thead>
+    <tbody>
+      <tr><td><code>argument-hint</code></td><td>斜杠命令后面显示的提示,比如 <code>&lt;PR编号&gt;</code>。</td></tr>
+      <tr><td><code>disallowed-tools</code></td><td>反过来,禁用某些工具。下一条消息发出时自动解除。</td></tr>
+      <tr><td><code>agent</code></td><td>配合 <code>context: fork</code>,指定派哪种分身去干。</td></tr>
+      <tr><td><code>isolation: worktree</code></td><td>在一个临时的 git 副本里干活,不碰你的工作区。</td></tr>
+      <tr><td><code>disable-model-invocation</code></td><td>设 true,Claude 就不准自己调,只有你打斜杠才触发。</td></tr>
+      <tr><td><code>user-invocable: false</code></td><td>反过来,从菜单里藏起来,只让 Claude 自己用。</td></tr>
+      <tr><td><code>hooks</code></td><td>这个命令生效期间临时挂钩子(见第 04 层)。</td></tr>
+      <tr><td><code>skills</code></td><td>顺带把哪些别的技能也加载进来。</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="note warn">
+    <span class="lb">一个实测出来的坑</span>
+    <code>claude -p "/名字"</code> 这种命令行直跑的方式<b>不会展开斜杠命令</b>(会被当成一个路径)。
+    只有交互式终端里打斜杠才展开。你平时用的就是交互式终端,不受影响。
+  </div>
+</section>
+
+<section id="l3" class="layer">
+  <div class="lhead">
+    <span class="lnum">03</span>
+    <div><h2>找人替你干 <span class="chip cool">按需</span></h2>
+    <div class="lsub">子代理。它的价值不是「更聪明」,是「花的不是你的上下文」。</div></div>
+  </div>
+
+  <p>很多人以为子代理是「换个人格」,其实不是。<strong>它真正的用处是:让别人去读那一堆文件,你这边只收结论。</strong></p>
+  <p>你的对话空间是有限的。子代理是唯一能「花别人的额度干活」的机制。</p>
+
+  <div class="tree"><b>~/.claude/agents/名字.md</b>       <i>全局</i>
+<b>项目/.claude/agents/名字.md</b>    <i>只给这个项目</i></div>
+
+  <div class="eg">
+    <h4>例子:一个只读的审查员</h4>
+<pre><code><span class="cm">---</span>
+<span class="ky">description</span>: 代码审查员,只看不改,专挑逻辑漏洞
+<span class="ky">tools</span>: Read, Grep, Glob      <span class="cm"># 换掉默认工具,它连改文件的能力都没有</span>
+<span class="ky">model</span>: opus                  <span class="cm"># 审查这种活值得用好模型</span>
+<span class="cm">---</span>
+你是一个严格的代码审查员。只报你能给出复现步骤的问题,
+拿不准的说拿不准,不要为了凑数编问题。
+</code></pre>
+    <p><strong>注意 <code>tools</code> 是「替换」不是「追加」</strong>——写了这三个,它就只有这三个,想改文件也改不了。这是最硬的护栏。</p>
+  </div>
+
+  <div class="tw"><table>
+    <thead><tr><th>命令行</th><th>干什么</th></tr></thead>
+    <tbody>
+      <tr><td><code>--agent 名字</code></td><td>让<strong>主会话自己</strong>变成这个角色。</td></tr>
+      <tr><td><code>--bg</code></td><td>整个会话丢到后台跑,立刻返回。</td></tr>
+      <tr><td><code>claude agents</code></td><td>管理后台跑着的代理。</td></tr>
+      <tr><td><code>/agents</code></td><td>会话里的管理界面。</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="l4" class="layer">
+  <div class="lhead">
+    <span class="lnum">04</span>
+    <div><h2>不靠自觉的规矩 <span class="chip cool">按需</span></h2>
+    <div class="lsub">钩子。这是全篇唯一「跟模型愿不愿意无关」的机制。</div></div>
+  </div>
+
+  <p><strong>先记住这条分界:</strong></p>
+  <div class="ba">
+    <div class="bad"><span class="lb">提示词 = 劝阻</span>
+      在 CLAUDE.md 里写「每次改完代码都要跑 lint」。<br><br>
+      Claude <b>可能会忘</b>。事情一多就忘。
+    </div>
+    <div class="good"><span class="lb">钩子 = 拦截</span>
+      挂一个钩子在「改完文件」这个事件上。<br><br>
+      这是外部程序在跑,<b>模型忘不掉也绕不过</b>。
+    </div>
+  </div>
+  <p style="margin-top:18px;">所以判断很简单:<strong>凡是「每次都必须」的事,写提示词就是错的,该写钩子。</strong></p>
+
+  <h3>能挂在哪些时刻</h3>
+  <div class="tw"><table>
+    <thead><tr><th>时刻</th><th>能拿它干什么</th></tr></thead>
+    <tbody>
+      <tr><td><code>PostToolUse</code></td><td>Claude 改完文件之后 —— 自动跑格式化、自动跑 lint。</td></tr>
+      <tr><td><code>PreToolUse</code></td><td>Claude 动手之前 —— <strong>可以拦下来</strong>。做硬护栏就靠它。</td></tr>
+      <tr><td><code>Stop</code></td><td>一轮干完了 —— <strong>你的完成通知就挂在这。</strong></td></tr>
+      <tr><td><code>UserPromptSubmit</code></td><td>你按回车的瞬间 —— 可以偷偷补充点上下文进去。</td></tr>
+      <tr><td><code>SessionStart</code> / <code>SessionEnd</code></td><td>开场 / 收尾 —— 开场注入环境信息,收尾归档。</td></tr>
+      <tr><td><code>PreCompact</code> / <code>PostCompact</code></td><td>上下文被压缩前后 —— <strong>压缩前把关键结论存盘,很实用。</strong></td></tr>
+      <tr><td><code>SubagentStart</code> / <code>SubagentStop</code></td><td>分身起止。</td></tr>
+      <tr><td><code>Notification</code> · <code>TeammateIdle</code></td><td>发通知时 · 协作空闲时。</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="eg">
+    <h4>例子:改完前端文件自动格式化</h4>
+    <p>写进 <code>.claude/settings.json</code>:</p>
+<pre><code>{
+  <span class="ky">"hooks"</span>: {
+    <span class="ky">"PostToolUse"</span>: [{
+      <span class="ky">"matcher"</span>: <span class="ky">"Edit|Write"</span>,          <span class="cm">// 改文件的动作才触发</span>
+      <span class="ky">"hooks"</span>: [{
+        <span class="ky">"type"</span>: <span class="ky">"command"</span>,
+        <span class="ky">"command"</span>: <span class="ky">"npx prettier --write $CLAUDE_FILE_PATHS"</span>,
+        <span class="ky">"timeout"</span>: 30,
+        <span class="ky">"async"</span>: true                <span class="cm">// 后台跑,不卡着你</span>
+      }]
+    }]
+  }
+}</code></pre>
+  </div>
+
+  <h4>拦截怎么写</h4>
+  <p>钩子脚本靠<strong>退出码</strong>说话:</p>
+  <ul>
+    <li><code>0</code> —— 放行,啥也不做。</li>
+    <li><code>2</code> —— <strong>拦下来</strong>。你打印到 stderr 的话会作为错误递给 Claude,让它改。</li>
+    <li>其它数字 —— 出错了但不拦。</li>
+  </ul>
+  <p>还有个进阶的 <code>asyncRewake</code>:后台跑,<strong>跑完退出码是 2 就把 Claude 叫醒</strong>。适合长任务。</p>
+
+  <div class="note warn">
+    <span class="lb">你已经付过学费的坑</span>
+    Stop 钩子<b>必须同步读 stdin</b>——用异步读会拿不到数据。这条在你的 claude-hub 项目里踩过。
+  </div>
+</section>
+
+<section id="l5" class="layer">
+  <div class="lhead">
+    <span class="lnum">05</span>
+    <div><h2>自己按计划干</h2>
+    <div class="lsub">从「你叫它干」升级到「它自己干」。</div></div>
+  </div>
+
+  <div class="tw"><table>
+    <thead><tr><th>放哪</th><th>干什么</th><th>什么时候用</th></tr></thead>
+    <tbody>
+      <tr><td><code>.claude/workflows/*.js</code></td><td>用 JS 写死流程,指挥一堆分身并行干活。</td><td>几十个文件的批量改造、全仓审计。控制流是你写的,不靠模型即兴发挥。</td></tr>
+      <tr><td><code>/loop</code> · <code>.claude/loop.md</code></td><td>一个任务按间隔反复跑,比如 <code>/loop 5m /查部署</code>。</td><td>盯 CI、轮询状态。</td></tr>
+      <tr><td><code>.claude/routines/</code><br><code>.claude/scheduled_tasks.json</code></td><td>定时任务,到点自己跑。</td><td><strong>你现在用 Windows 计划任务干的那些活</strong>(节点抓取、抖音监控),有些可以搬过来。</td></tr>
+      <tr><td><code>--bg</code></td><td>整个会话丢后台。</td><td>长任务,不想守着。</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="l6" class="layer">
+  <div class="lhead">
+    <span class="lnum">06</span>
+    <div><h2>装新本事</h2>
+    <div class="lsub">给它装新器官,而不是新说明书。有些事光靠写字是教不会的。</div></div>
+  </div>
+
+  <div class="tw"><table>
+    <thead><tr><th>放哪</th><th>装的是什么</th></tr></thead>
+    <tbody>
+      <tr><td><code>.mcp.json</code></td><td><strong>外部系统的工具</strong>。你没法用文字教会它「怎么查我们的数据库」,得给它真工具。</td></tr>
+      <tr><td><code>.lsp.json</code></td><td><strong>语言服务器</strong>。让它拿到真正的类型信息和跳转定义,而不是读文本靠猜。强类型项目值得配。</td></tr>
+      <tr><td><code>.claude/output-styles/</code></td><td>换掉默认的回答风格。<code>/output-style</code> 切换。</td></tr>
+      <tr><td><code>statusLine</code>(设置里)</td><td>底部状态栏跑你自己的脚本。</td></tr>
+      <tr><td><code>~/.claude/keybindings.json</code></td><td>自定义快捷键。<code>/keybindings</code> 配置。</td></tr>
+      <tr><td>插件 <code>/plugin</code></td><td><strong>把上面所有东西打成一个包</strong>——命令、技能、代理、钩子、主题、MCP 全打进去。</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="note">
+    <span class="lb">插件什么时候用得上</span>
+    如果你哪天要把一整套配置<b>发给别人</b>,或者在<b>几台机器之间同步</b>——别手动拷目录,一定会漏。打成插件。
+  </div>
+</section>
+
+<section id="l7" class="layer">
+  <div class="lhead">
+    <span class="lnum">07</span>
+    <div><h2>开工时的开关</h2>
+    <div class="lsub">不改任何文件,启动那一下决定这个会话怎么跑。</div></div>
+  </div>
+
+  <h3>权限模式 —— 最该记住的一个</h3>
+  <div class="tw"><table>
+    <thead><tr><th>模式</th><th>什么行为</th></tr></thead>
+    <tbody>
+      <tr><td><code>plan</code></td><td><strong>只读,先出方案不动手。</strong>做架构设计、有取舍的改动,应该默认用这个 —— 正好对上你「先设计后实施」的习惯。</td></tr>
+      <tr><td><code>acceptEdits</code></td><td>改文件不用问,其它照问。</td></tr>
+      <tr><td><code>manual</code></td><td>每一步都问。</td></tr>
+      <tr><td><code>auto</code> · <code>dontAsk</code></td><td>自动判定 · 不问但不等于全放开。</td></tr>
+      <tr><td><code>bypassPermissions</code></td><td>全放开。<strong>只在断网沙箱里用。</strong></td></tr>
+    </tbody>
+  </table></div>
+  <p>面板里「新会话(计划模式)」按的就是 <code>--permission-mode plan</code>。</p>
+
+  <h3>其它常用的</h3>
+  <div class="tw"><table>
+    <thead><tr><th>开关</th><th>干什么</th></tr></thead>
+    <tbody>
+      <tr><td><code>--model</code> / <code>--effort</code></td><td>换模型 / 调思考深度。</td></tr>
+      <tr><td><code>-w, --worktree</code></td><td>开一个 git 副本干活,不碰你正在改的东西。</td></tr>
+      <tr><td><code>--add-dir</code></td><td>额外授权一个目录 —— 要跨项目引用文件时用。</td></tr>
+      <tr><td><code>-n 名字</code></td><td>给会话起名,<code>/resume</code> 列表里好找。</td></tr>
+      <tr><td><code>--fork-session</code></td><td>接着旧会话聊,但存成新的,不覆盖原来那条。</td></tr>
+      <tr><td><code>--max-budget-usd</code></td><td><strong>这次最多花多少钱。</strong>跑批量任务必设。</td></tr>
+      <tr><td><code>--json-schema</code></td><td>强制返回符合指定格式的 JSON。做自动化管线时关键。</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>上下文快满了怎么办</h3>
+  <ul>
+    <li><code>/context</code> —— <strong>看现在上下文里到底装了什么。</strong>调优先看这个。</li>
+    <li><code>/compact</code> —— 手动压缩。</li>
+    <li><code>/rewind</code> —— 回滚到之前某个点。</li>
+    <li><code>/usage</code> —— 看额度还剩多少。</li>
+  </ul>
+
+  <h3>设置文件谁说了算</h3>
+  <p>从高到低:<strong>企业托管 → <code>.claude/settings.local.json</code>(你本机私有) → <code>.claude/settings.json</code>(项目,进 git) → <code>~/.claude/settings.json</code>(你的全局)</strong>。</p>
+</section>
+
+<section id="l8" class="layer">
+  <div class="lhead">
+    <span class="lnum">08</span>
+    <div><h2>玩坏了怎么救</h2>
+    <div class="lsub">配置玩深了一定会出问题。记住第一个就够。</div></div>
+  </div>
+
+  <div class="tw"><table>
+    <thead><tr><th>开关</th><th>作用</th></tr></thead>
+    <tbody>
+      <tr><td><code>--safe-mode</code></td><td><strong>一键关掉你所有的自定义</strong>——CLAUDE.md、技能、插件、钩子、MCP、代理全部不加载,只留原生功能。<strong>出问题第一件事跑它:能跑通就说明是你配的东西惹的祸。</strong></td></tr>
+      <tr><td><code>/doctor</code></td><td>体检,能顺手修。</td></tr>
+      <tr><td><code>-d "hooks"</code></td><td>只看钩子的调试日志。也可以 <code>-d "api,hooks"</code>。</td></tr>
+      <tr><td><code>/hooks</code> <code>/skills</code> <code>/permissions</code> <code>/mcp</code></td><td>分别看这四样<strong>当前实际生效</strong>的是什么。</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<hr>
+
+<section id="cmds" class="layer">
+  <div class="lhead">
+    <div class="lnum">09</div>
+    <div><h2>全部命令 <span class="chip cool">速查</span></h2>
+    <div class="lsub">前面八层讲的是「怎么改 Claude 的行为」。这一层是「平时敲什么」——每条都带例子。</div></div>
+  </div>
+
+  <div class="note">
+    <span class="lb">这份清单哪来的</span>
+    不是凭记忆写的,是从本机 <code>claude.exe</code>(<b>v2.1.319</b>)的命令注册表里抠出来逐条核对的。
+    随版本会变,<code>/help</code> 永远最准。标 <b>[插件]</b> 的来自已装插件(GSD / Superpowers / 技能),
+    <b>不是 Claude Code 自带</b>——换台机器照着敲可能没有。
+  </div>
+
+  <h3>先会这十个</h3>
+  <p>其余的用到再翻。</p>
+  <div class="tw"><table>
+    <tr><th>命令</th><th>干什么</th></tr>
+    <tr><td><code>/context</code></td><td>看上下文用了多少、谁占的</td></tr>
+    <tr><td><code>/autocompact</code></td><td>设「多满才自动压缩」——<b>省钱第一开关</b></td></tr>
+    <tr><td><code>/clear</code></td><td>清空开新会话(旧的留在磁盘,能回去)</td></tr>
+    <tr><td><code>/resume</code></td><td>回到任意旧会话</td></tr>
+    <tr><td><code>/compact</code></td><td>压缩当前对话,留一份摘要</td></tr>
+    <tr><td><code>/model</code></td><td>换模型</td></tr>
+    <tr><td><code>/usage</code></td><td>看额度和花销</td></tr>
+    <tr><td><code>/insights</code></td><td>生成你的使用分析报告</td></tr>
+    <tr><td><code>/btw</code></td><td>问个岔开的小问题,不污染主线</td></tr>
+    <tr><td><code>/help</code></td><td>列出全部命令(永远最准)</td></tr>
+  </table></div>
+
+  <h3>上下文与省钱</h3>
+  <p>这一组直接决定额度烧得快不快。<strong>先搞懂这几个,比学会其它所有命令加起来都值钱。</strong></p>
+
+  <div class="eg">
+    <h4><span class="path">/context [all]</span> 看上下文被谁占满了</h4>
+    <pre><code><span class="ky">/context</span>         <span class="cm">当前会话的占用分布(彩色格子图)</span>
+<span class="ky">/context all</span>     <span class="cm">连系统提示、工具定义、已装技能一起算</span></code></pre>
+    <p>觉得「最近怎么这么贵」的时候,<b>第一个该敲的就是它</b>。不知道谁占满了,调什么都是瞎调。</p>
+  </div>
+
+  <div class="eg">
+    <h4><span class="path">/autocompact [auto|&lt;tokens&gt;]</span> 设自动压缩的阈值</h4>
+    <pre><code><span class="ky">/autocompact</span>              <span class="cm">打开选择界面</span>
+<span class="ky">/autocompact 300k</span>         <span class="cm">堆到 30 万就自动压(推荐)</span>
+<span class="ky">/autocompact 200000</span>       <span class="cm">写全数字也行</span>
+<span class="ky">/autocompact auto</span>         <span class="cm">恢复默认</span></code></pre>
+    <p><strong>省钱幅度最大的一个开关。</strong>默认 <code>auto</code> 对 1M 窗口的模型几乎等于不节流——要堆到接近 100 万才动手,
+    而上下文每多一分,之后<b>每一次</b>工具调用都要为它重复付费。</p>
+    <p>取值 100k~1M,实际阈值 = min(这个值, 模型窗口上限)。启动时也能定:<code>claude --autocompact 300k</code></p>
+    <p><b>代价:</b>压得越勤,摘要越频繁,久远的细节丢得越多。重要结论随手写进 <code>CLAUDE.md</code> 或修改记录,别指望摘要替你记。</p>
+  </div>
+
+  <div class="eg">
+    <h4><span class="path">/compact [摘要要求]</span> 立刻压缩</h4>
+    <pre><code><span class="ky">/compact</span>
+<span class="ky">/compact</span> 重点保留排查过程和已验证的结论,代码细节可以略</code></pre>
+    <p>把整段对话重写成一份摘要(通常 1~2 万 token)。<strong>注意它自己是要花钱的</strong>——
+    要把整个上下文读一遍才写得出摘要,上下文有多大就读多少。所以<b>「堆到很满再压」是最贵的用法</b>。</p>
+  </div>
+
+  <div class="eg">
+    <h4><span class="path">/clear [名字]</span> 清空开新会话 <span class="chip hot">别名 /reset /new</span></h4>
+    <pre><code><span class="ky">/clear</span>
+<span class="ky">/clear</span> 节点指挥舱-换机功能</code></pre>
+    <p><strong>和 /compact 的本质区别:/clear 一个字都不留。</strong>新会话只会自动读到这些:</p>
+    <ul>
+      <li>全局 <code>CLAUDE.md</code>、项目 <code>CLAUDE.md</code></li>
+      <li><code>MEMORY.md</code> 那套自动记忆</li>
+      <li>SessionStart 钩子注入的内容</li>
+      <li>当前工作目录</li>
+    </ul>
+    <p><b>之前聊过什么、查出过什么,它一概不知道。</b>好处是不花压缩那笔钱,从干净的桌子起步。</p>
+    <div class="note warn">
+      <span class="lb">用之前</span>
+      <b>先让 Claude 把结论写进项目文件再清</b>,否则就真丢了。旧会话本身还在磁盘上,<code>/resume</code> 随时回去。
+    </div>
+  </div>
+
+  <p><code>/skill-doctor</code> — 列出已加载但一直没用上的技能,它们在白占上下文。装了一堆插件之后值得跑一次。</p>
+
+  <h3>会话管理</h3>
+  <div class="eg">
+    <h4><span class="path">/resume</span> 回到旧会话</h4>
+    <pre><code><span class="ky">/resume</span>                       <span class="cm">打开会话选择器</span>
+claude --resume &lt;会话ID&gt;      <span class="cm">命令行定点恢复</span>
+claude --continue             <span class="cm">接上最近一个</span></code></pre>
+    <p>总控会话卡上的「打开」按钮,底层就是它。</p>
+  </div>
+  <div class="tw"><table>
+    <tr><th>命令</th><th>干什么</th><th>什么时候用</th></tr>
+    <tr><td><code>/rename</code></td><td>给当前会话改名</td><td>改的是 Claude Code 那套会话名;总控的标题会跟着同步</td></tr>
+    <tr><td><code>/recap</code></td><td>生成一行会话摘要</td><td>回头想不起这会话在干嘛</td></tr>
+    <tr><td><code>/branch [名字]</code></td><td>从这一刻<b>分叉</b>出一条新对话</td><td>想试个没把握的方向,不满意直接丢,主线保持干净</td></tr>
+    <tr><td><code>/rewind</code></td><td>回退到之前的检查点(双击 <kbd>Esc</kbd> 也行)</td><td>代码和对话可以<b>分开</b>选退不退</td></tr>
+    <tr><td><code>/fork &lt;指令&gt;</code></td><td>开后台 agent,<b>继承完整对话</b></td><td>甩出去独立跑,不回来</td></tr>
+    <tr><td><code>/subtask &lt;任务&gt;</code></td><td>派子代理带完整上下文去干</td><td>结果<b>回到</b>当前对话</td></tr>
+    <tr><td><code>/btw [问题]</code></td><td>问个岔开的小问题</td><td>不打断也不污染主线</td></tr>
+    <tr><td><code>/export</code> <code>/copy</code> <code>/clipboard</code></td><td>导出对话 / 复制最后一条 / 整段进剪贴板</td><td><code>/copy 3</code> = 复制倒数第三条</td></tr>
+    <tr><td><code>/stop</code></td><td>停掉后台会话</td><td>转录和工作树都保留</td></tr>
+  </table></div>
+  <div class="note hot">
+    <span class="lb">为什么 /btw 值钱</span>
+    平时你随口问的「顺便问一句 git stash 冲突怎么办」,它和回答会<b>永久留在上下文里跟着跑一辈子</b>,
+    之后每次调用都在为它付费。用 <code>/btw</code> 就不会。
+  </div>
+
+  <h3>模型与推理深度</h3>
+  <div class="eg">
+    <h4><span class="path">/model</span> 换模型</h4>
+    <pre><code><span class="ky">/model</span>                <span class="cm">打开选择器</span>
+<span class="ky">/model opus</span>           <span class="cm">换 Opus</span>
+<span class="ky">/model sonnet</span>         <span class="cm">换 Sonnet</span></code></pre>
+    <p><b>省钱提示:</b>轻活(整理文件、跑数据、批量改文案)换 Sonnet,同样的上下文便宜一个数量级。</p>
+  </div>
+  <ul>
+    <li><code>/effort</code> — 调推理深度。日常 high 够用,<b>xhigh 很贵,别挂着不放</b></li>
+    <li><code>/fast</code> — 快速模式(还是 Opus,只是输出更快,不是换小模型)</li>
+    <li><code>/advisor</code> — 关键时刻让 Claude 去咨询一个更强的模型</li>
+    <li><code>/status</code> — 版本、模型、账号、连通性、各工具状态一览</li>
+  </ul>
+
+  <h3>干活方式</h3>
+  <div class="eg">
+    <h4><span class="path">/plan</span> · <span class="path">/goal</span> 先定计划、再定验收线</h4>
+    <pre><code><span class="ky">/plan</span> 把节点指挥舱的换机功能拆成阶段
+<span class="ky">/goal</span> 所有测试通过并且 sync:check 一致
+<span class="ky">/goal</span> clear</code></pre>
+    <p><code>/goal</code> 设完之后,Claude <b>每次想停下来之前都会先检查有没有达成</b>——治「做一半就来汇报」。</p>
+    <p><kbd>Shift</kbd>+<kbd>Tab</kbd> 循环切权限模式:逐条确认 → acceptEdits 自动批编辑 → plan 先出计划 → bypassPermissions 全放开(只在可信的本机环境用)。</p>
+  </div>
+  <p><code>/powerup</code> — 用小课程的形式带你认识 Claude Code 的功能,不知道该学什么时可以跑一下。</p>
+
+  <h3>记忆与规矩</h3>
+  <p>三层规矩,从上到下逐层叠加,都支持 <code>@文件</code> 把别的文件导进来:</p>
+  <div class="tree">~/.claude/<b>CLAUDE.md</b>          <i>全局,所有项目共享</i>
+&lt;项目&gt;/<b>CLAUDE.md</b>             <i>项目规矩</i>
+&lt;项目&gt;/<b>CLAUDE.local.md</b>       <i>只属于你本机,不进 git</i></div>
+  <ul>
+    <li><code>/memory</code> — 浏览编辑 CLAUDE.md 和记忆设置</li>
+    <li><code>/init</code> — 给当前项目生成一份 CLAUDE.md 初稿</li>
+    <li><code>.claude/rules/</code> — 按路径/文件类型<b>条件生效</b>的规则,只在改到匹配文件时才加载,不白占上下文</li>
+  </ul>
+  <p>自动记忆在 <code>~/.claude/projects/&lt;项目&gt;/memory/</code>:<code>MEMORY.md</code> 是索引(每次会话自动装载),具体内容按需读取。</p>
+
+  <h3>扩展机制</h3>
+  <p>这几样<b>前面 01~06 已经详讲</b>了,这里只列命令。</p>
+  <div class="tw"><table>
+    <tr><th>命令</th><th>干什么</th></tr>
+    <tr><td><code>/hooks</code></td><td>看各个工具事件上挂了哪些钩子(本客户端的完成通知就是 Stop 钩子)</td></tr>
+    <tr><td><code>/mcp</code></td><td>管理 MCP 服务 · <code>/mcp reconnect all</code> · <code>/mcp disable &lt;服务名&gt;</code></td></tr>
+    <tr><td><code>/reload-skills</code></td><td>会话跑着的时候把新增/改过的技能重新装进来</td></tr>
+    <tr><td><code>/reload-plugins [--force]</code></td><td>让待生效的插件改动在当前会话立即生效</td></tr>
+    <tr><td><code>/alias</code></td><td>创建或列出命令别名</td></tr>
+    <tr><td><code>/agents</code></td><td><b>此版本已移除</b>,直接编辑 <code>.claude/agents/</code> 代替</td></tr>
+  </table></div>
+
+  <h3>权限与安全</h3>
+  <ul>
+    <li><code>/permissions</code> — 管理允许/拒绝的工具权限规则</li>
+    <li><code>/privacy-settings</code> — 查看和修改隐私设置</li>
+    <li><code>/config [key=value]</code> — 打开设置 · <code>/keybindings</code> — 快捷键配置文件</li>
+  </ul>
+  <div class="eg">
+    <h4>界面外观类</h4>
+    <pre><code><span class="ky">/focus</span>            <span class="cm">只看你的提问、摘要和回复,其余折叠</span>
+<span class="ky">/brief</span>            <span class="cm">只给结论,不展开过程</span>
+<span class="ky">/tui</span> fullscreen   <span class="cm">全屏渲染模式</span></code></pre>
+    <p>还有 <code>/theme</code> <code>/color</code> <code>/scroll-speed</code>。</p>
+  </div>
+
+  <h3>代码审查与 Git <span class="chip hot">部分为插件</span></h3>
+  <div class="eg">
+    <h4><span class="path">/code-review</span> <b>[插件]</b> 审当前改动</h4>
+    <pre><code><span class="ky">/code-review</span>              <span class="cm">按上次用过的档位</span>
+<span class="ky">/code-review high</span>         <span class="cm">多找问题,允许一些不确定的</span>
+<span class="ky">/code-review ultra</span>        <span class="cm">多代理云端深度审查(贵)</span>
+<span class="ky">/code-review --fix</span>        <span class="cm">审完直接把问题改掉</span></code></pre>
+    <p>档位从低到高:<code>low · medium · high · xhigh · max · ultra</code>。</p>
+  </div>
+  <ul>
+    <li><code>/security-review</code> <b>[插件]</b> — 安全角度审当前分支的改动</li>
+    <li><code>/install-github-app</code> — 给仓库接上 Claude GitHub Actions</li>
+    <li><code>/autofix-pr</code> — 盯着当前 PR,CI 挂了自动修</li>
+  </ul>
+
+  <h3>诊断与救命</h3>
+  <div class="tw"><table>
+    <tr><th>命令</th><th>干什么</th></tr>
+    <tr><td><code>/doctor</code></td><td>环境体检</td></tr>
+    <tr><td><code>/insights</code></td><td><b>生成一份使用分析报告</b>(额度都花哪儿了)——值得定期跑</td></tr>
+    <tr><td><code>/usage</code></td><td>本会话花销、套餐用量、活动统计</td></tr>
+    <tr><td><code>/usage-credits</code></td><td>配置用量额度或向管理员申请</td></tr>
+    <tr><td><code>/rate-limit-options</code></td><td>管理用量上限和升级选项</td></tr>
+    <tr><td><code>/release-notes</code></td><td>看版本更新说明 · <code>/version</code> 看当前版本号</td></tr>
+    <tr><td><code>/bug</code> <code>/feedback</code></td><td>报 bug / 提反馈</td></tr>
+    <tr><td><code>/heapdump</code></td><td>导出 JS 堆快照到桌面(排查卡顿)</td></tr>
+  </table></div>
+
+  <h3>远程与自动化</h3>
+  <div class="tw"><table>
+    <tr><th>命令</th><th>干什么</th></tr>
+    <tr><td><code>/remote-control</code></td><td>用手机或 claude.ai/code 控制这个会话</td></tr>
+    <tr><td><code>/teleport</code>(<code>/tp</code>)</td><td>把会话送到云端,或从 claude.ai 接回来</td></tr>
+    <tr><td><code>/schedule</code> <b>[插件]</b></td><td>创建和管理定时云端 agent</td></tr>
+    <tr><td><code>/loop</code> <b>[插件]</b></td><td>按间隔反复跑某个提示词 · <code>/loop 5m /fenxi</code> · 不给间隔 = 让模型自己掌握节奏</td></tr>
+    <tr><td><code>/loops</code></td><td>列出 / 创建 / 删除 loop</td></tr>
+    <tr><td><code>/daemon</code></td><td>管理后台服务和例行任务</td></tr>
+    <tr><td><code>/remote-env</code> <code>/web-setup</code></td><td>选云端 agent 的默认环境 / 用 GitHub 账号配置云会话</td></tr>
+  </table></div>
+
+  <h3>工作目录与项目</h3>
+  <div class="eg">
+    <h4><span class="path">/add-dir</span> · <span class="path">/cd</span></h4>
+    <pre><code><span class="ky">/add-dir</span> F:\claude-project\独立站    <span class="cm">临时加一个可访问目录</span>
+<span class="ky">/cd</span> F:\claude-project\claude-hub   <span class="cm">把会话整个挪过去</span></code></pre>
+  </div>
+  <ul>
+    <li><code>/project [项目ID] [--save]</code> — 指定这个会话的用量归到 claude.ai 的哪个 Project</li>
+    <li><code>/import [codex|gemini|cursor] [--dry-run]</code> — 从别的 AI 编程工具导入配置</li>
+  </ul>
+
+  <h3>输入框技巧 <span class="chip cool">不是命令,但天天用</span></h3>
+  <div class="eg">
+    <h4><code>!</code> 开头直接跑 shell,结果进上下文</h4>
+    <pre><code><span class="ky">!</span>git status
+<span class="ky">!</span>npm test</code></pre>
+    <p>用途:你想让 Claude <b>看到</b>某条命令的输出,又不想它自己去跑。</p>
+  </div>
+  <div class="eg">
+    <h4><code>@</code> 引用文件</h4>
+    <pre><code><span class="ky">@</span>main.js                  <span class="cm">整个文件</span>
+<span class="ky">@</span>lib/data.js#20-60        <span class="cm">只引用 20~60 行</span>
+<span class="ky">@</span>docs/                    <span class="cm">整个目录</span>
+<span class="ky">@</span>说明.pdf#3               <span class="cm">PDF 第 3 页</span></code></pre>
+    <p>只引用需要的那几行,比让它读整个文件省得多。</p>
+  </div>
+  <ul>
+    <li><b>直接粘贴截图</b>:<kbd>Ctrl</kbd>+<kbd>V</kbd> 就行,总控会自动存成 PNG 并把路径填进来;图片/文件<b>拖进终端</b>也可以</li>
+    <li><kbd>Shift</kbd>+<kbd>Tab</kbd>:循环切权限模式 · <b>双击</b> <kbd>Esc</kbd>:调出检查点回退</li>
+    <li><kbd>Ctrl</kbd>+<kbd>+</kbd> / <kbd>-</kbd> / <kbd>0</kbd>:终端字号放大、缩小、复位(这是总控自己的快捷键)</li>
+  </ul>
+
+  <h3>命令行参数(不进交互界面)</h3>
+  <pre><code>claude <span class="ky">-p</span> "把这个目录的 md 文件列一下"      <span class="cm">执行完就退,适合写进脚本</span>
+claude <span class="ky">-p</span> "..." --output-format json       <span class="cm">输出 JSON,方便程序解析</span>
+claude <span class="ky">--continue</span>                          <span class="cm">接上最近一个会话</span>
+claude <span class="ky">--resume</span> &lt;会话ID&gt;                   <span class="cm">定点恢复</span>
+claude <span class="ky">--bg</span>                                <span class="cm">丢后台跑,立刻返回一个 id</span>
+claude <span class="ky">--autocompact</span> 300k                  <span class="cm">启动就定好压缩阈值</span>
+claude <span class="ky">--model</span> opus                        <span class="cm">指定模型</span>
+claude <span class="ky">--add-dir</span> &lt;目录...&gt;                 <span class="cm">额外允许访问的目录</span>
+claude <span class="ky">--agent</span> &lt;名字&gt;                      <span class="cm">本次会话用指定 agent</span>
+claude <span class="ky">--allowed-tools</span> "Bash(git *)" Edit  <span class="cm">限定可用工具</span>
+claude <span class="ky">--append-system-prompt</span> "..."        <span class="cm">追加系统提示</span>
+claude <span class="ky">--bare</span>                              <span class="cm">极简:跳过钩子、LSP、插件同步、自动记忆</span>
+claude <span class="ky">--worktree</span>                          <span class="cm">用隔离的 git 工作树,多会话不互踩</span>
+claude update                                 <span class="cm">升级 Claude Code</span>
+claude mcp add ...                            <span class="cm">添加 MCP 服务</span></code></pre>
+  <p>配合 <code>--bg</code> 的几个:<code>claude attach &lt;id&gt;</code>、<code>claude logs &lt;id&gt;</code>、<code>claude stop &lt;id&gt;</code>、<code>claude agents</code>(列出后台会话)。</p>
+
+  <h3>省额度的七条实战经验</h3>
+  <ol>
+    <li><strong>先看 <code>/context</code>,再谈省钱。</strong>不知道上下文被谁占满,改什么都是瞎调。</li>
+    <li><strong><code>/autocompact</code> 设 200k~300k。</strong>默认几乎等于不节流。单项收益最大的改动。</li>
+    <li><strong>工具返回是大头。</strong>实测一个长会话里,「发给工具的参数 + 工具返回」占到<b>七成以上</b>,真正的对话内容不到两成。
+      所以少让它做无谓的全文件读取、让它用 Grep 精确定位,比什么都省。</li>
+    <li><strong>轻活换 Sonnet。</strong><code>/model sonnet</code> 一句话的事。</li>
+    <li><strong>岔开的问题用 <code>/btw</code>。</strong>不然它永久留在上下文里。</li>
+    <li><strong>长会话该退休就退休。</strong>跑了几个月的会话,把结论写进 <code>CLAUDE.md</code> / 修改记录,然后 <code>/clear</code> 开新的。
+      比一直 <code>/compact</code> 省:压缩本身要把整个上下文读一遍才写得出摘要,上下文越大这笔钱越贵。</li>
+    <li><strong>别让 effort 一直挂在 xhigh。</strong></li>
+  </ol>
+
+  <h3>几个容易搞混的</h3>
+  <div class="tw"><table>
+    <tr><th>这个</th><th>和这个</th><th>差在哪</th></tr>
+    <tr><td><code>/clear</code></td><td><code>/compact</code></td>
+        <td><code>/clear</code> <b>一个字不留</b>,新会话只读 CLAUDE.md 和记忆,不花压缩的钱;
+            <code>/compact</code> 留一份摘要,还记得个大概,但要先读一遍全部上下文,很贵</td></tr>
+    <tr><td><code>/compact</code></td><td>自动压缩</td>
+        <td>一样的东西,区别只是谁触发。<code>/autocompact</code> 设的就是自动那次的阈值</td></tr>
+    <tr><td><code>/fork</code></td><td><code>/subtask</code></td>
+        <td><code>/fork</code> 甩后台独立跑,<b>不回来</b>;<code>/subtask</code> 结果<b>回到</b>当前对话</td></tr>
+    <tr><td><code>/branch</code></td><td><code>/clear</code></td>
+        <td><code>/branch</code> <b>保留</b>之前的上下文,从这一刻分出一条新线;<code>/clear</code> 清空重来</td></tr>
+    <tr><td>技能</td><td>命令</td>
+        <td><code>/help</code> 里列出来的是内置命令;<code>/技能名</code> 是你自己或插件装的流程手册(在 <code>.claude/skills/</code>),
+            本章标 <b>[插件]</b> 的都是</td></tr>
+  </table></div>
+</section>
+
+<section id="pick">
+  <h2>该用哪个</h2>
+  <p>全篇最实用的一张表。</p>
+  <div class="tw"><table>
+    <thead><tr><th>你想要</th><th>用这个</th><th>为什么不用别的</th></tr></thead>
+    <tbody>
+      <tr><td>每次都得守的铁律</td><td><code>CLAUDE.md</code></td><td>得常驻才有用。但正因为常驻,只写几行。</td></tr>
+      <tr><td>只在改某类文件时的规矩</td><td><code>rules/*.md</code> + <code>paths</code></td><td>写进 CLAUDE.md 会让不相关的对话也跟着付钱。</td></tr>
+      <tr><td>一段常用的话</td><td><code>commands/名字.md</code></td><td>建个文件夹是多余的,单文件就够。</td></tr>
+      <tr><td>带脚本、带附件的流程</td><td><code>skills/名字/SKILL.md</code></td><td>单文件塞不下附件。</td></tr>
+      <tr><td>要读一堆文件的重活</td><td>加 <code>context: fork</code></td><td>不加的话,读进来的东西全留在你的对话里。</td></tr>
+      <tr><td>一个完全独立的角色</td><td><code>agents/名字.md</code></td><td>技能还是共享环境,代理才是真隔离。</td></tr>
+      <tr><td>「每次 X 之后都要 Y」</td><td><strong>钩子</strong></td><td>写提示词模型会忘,这是唯一确定的办法。</td></tr>
+      <tr><td>禁止某个危险操作</td><td>钩子 <code>PreToolUse</code> 退出码 2</td><td>提示词是劝,钩子是拦。</td></tr>
+      <tr><td>几十个文件的批量改造</td><td><code>workflows/*.js</code></td><td>要确定的循环,不能靠模型自由发挥。</td></tr>
+      <tr><td>到点自动跑</td><td><code>routines/</code></td><td>不用你开着终端。</td></tr>
+      <tr><td>接数据库、接 API</td><td><code>.mcp.json</code></td><td>文字教不会怎么调 API,得给真工具。</td></tr>
+      <tr><td>发给别人 / 多机同步</td><td>插件</td><td>手动拷目录必漏。</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="you">
+  <h2>就你现在的用法,四条建议</h2>
+
+  <div class="eg">
+    <h4>一 · 记忆索引行要压短</h4>
+    <p><code>MEMORY.md</code> 是<strong>每轮都带</strong>的。你现在五十多条,每条后面跟着一长串描述——这些字你之后每一轮对话都在花钱。</p>
+    <p>索引行只要够你和 Claude 判断「要不要点开」就行,细节留在正文文件里。</p>
+  </div>
+
+  <div class="eg">
+    <h4>二 · 把「横向排查」做成 fork 命令</h4>
+    <p>你经常让我「扫一遍别的端有没有同款问题」——这活要读一大堆文件,读完全堆在对话里。</p>
+    <p>做成一个带 <code>context: fork</code> 的命令,结论回来、过程丢掉,你的对话能撑久得多。<strong>现在面板里就能建。</strong></p>
+  </div>
+
+  <div class="eg">
+    <h4>三 · 计费红线应该是钩子,不是技能</h4>
+    <p>薪果那边的计费护栏,现在靠的是「审查技能 + 你记得调」。这是劝阻,不是拦截。</p>
+    <p>改成 <code>PreToolUse</code> 钩子,匹配计费相关的文件路径,把条件写死——<strong>模型忘不掉也绕不过</strong>,这才叫护栏。</p>
+  </div>
+
+  <div class="eg">
+    <h4>四 · 设计类任务默认走计划模式</h4>
+    <p>你的习惯是「架构和有取舍的改动先出方案、确认了再做」。这件事有现成的开关:<code>--permission-mode plan</code>,面板里「新会话(计划模式)」就是。</p>
+    <p>比每次在提示词里叮嘱可靠——<strong>计划模式下它根本改不了文件。</strong></p>
+  </div>
+</section>
+
+<section id="verify">
+  <h2>核实说明</h2>
+  <p>说清楚哪些是查证的、哪些是我的判断:</p>
+  <ul>
+    <li><strong>查证过的</strong>:命令行开关全部来自本机 <code>claude --help</code>;配置目录、钩子事件名、各种设置项及其官方说明,来自本机 <code>claude.exe</code> 里内嵌的配置定义。「命令和技能是一回事」这条,是新建文件后当前会话立即收到注册通知实测确认的。</li>
+    <li><strong>我的判断</strong>:各种「什么时候该用哪个」的建议,是我根据这些机制的语义给的意见,不是官方原文。<code>routines/</code> 定时任务我只确认了它存在和用途,<strong>没有实际跑通过</strong>。</li>
+  </ul>
+  <p>版本 2.1.227。这些接口会随版本变,拿不准就看 <code>claude --help</code> 和 <code>/doctor</code>。</p>
+</section>
+
+<div class="foot">
+  Claude Code 扩展面全图 · 基于本机 v2.1.227 实测整理 · 2026-08-22
+</div>
+
+</div>
+</main>
+</div>
+<script>
+// 跟随总控面板的明暗:父窗口用 ?theme=dark|light 告诉我们
+(function(){
+  var t=new URLSearchParams(location.search).get("theme");
+  if(t==="dark"||t==="light") document.documentElement.setAttribute("data-theme",t);
+})();
+</script>
+</body>
+</html>

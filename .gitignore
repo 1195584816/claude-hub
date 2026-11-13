@@ -1,0 +1,32 @@
+# 依赖与构建产物
+node_modules/
+dist/
+dist2/
+release-agent-api-final/
+release/
+build/icon-src/
+
+# 个人数据(绝不能进仓库)
+projects.json
+notify-config.json
+session-titles.json
+usage-cache.json
+prompts.json
+pastes/
+*.bak
+*.json.bak*
+*.md.bak-*
+*.js.bak-*
+done-feed.jsonl
+
+# 开发过程物料
+design-ref/
+docs/私*
+docs/发布指南.md
+修改记录.md
+修改记录-归档*.md
+.chk.js
+
+# 系统
+.DS_Store
+Thumbs.db
