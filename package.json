@@ -1,6 +1,6 @@
 {
   "name": "claude-hub",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "description": "Claude Code 桌面驾驶舱:项目/会话/记忆一屏掌控,内嵌真终端,完成通知与 token 账本",
   "main": "main.js",
   "scripts": {

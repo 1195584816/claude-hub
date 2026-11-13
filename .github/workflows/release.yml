@@ -22,10 +22,54 @@ jobs:
       - name: 安装依赖
         run: npm ci
 
+      # 为什么要先建:electron-builder 的每个上传器都是「先查有没有这个标签的 Release,没有就建一个」。
+      # 安装包和 blockmap 是两个上传器同时跑的,各自都查到「没有」,于是各建一条 ——
+      # 同一个标签出现两条同名 Release,文件被分到两边。按标签的下载地址只认其中一条:
+      # v1.1.1 那次认到的是只有 blockmap 的那条,latest.yml 和安装包全部 404,自动更新读不到新版。
+      # (v1.0.0 / v1.1.0 其实也各有两条,只是运气好文件落对了。)
+      # 先建好之后,两个上传器查到的都是这一条(electron-builder 认两小时内发布的现成 Release)。
+      - name: 先建好 Release(避免打包工具并发各建一条)
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $tag = $env:GITHUB_REF_NAME
+          $tags = gh api "repos/$env:GITHUB_REPOSITORY/releases" --paginate --jq '.[].tag_name'
+          if ($LASTEXITCODE -ne 0) { throw '读取 Release 列表失败' }
+          $n = @($tags | Where-Object { $_ -eq $tag }).Count
+          Write-Host "标签 $tag 现有 Release 条数: $n"
+          if ($n -eq 0) {
+            # 说明文字不能给空串:pwsh 往外部程序传空参数有可能被吞掉,后面的参数就错位了
+            gh release create $tag --title ($tag -replace '^v', '') --notes "Windows 安装包见下方 Assets。" --verify-tag
+            if ($LASTEXITCODE -ne 0) { throw '建 Release 失败' }
+          }
+
       - name: 打包并发布到 Releases
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npx electron-builder --win --publish always
+
+      # 打包步骤「成功」不等于用户下得到(v1.1.1 就是全绿但清单 404)。这里按用户实际走的路核一遍,不对就让流程变红。
+      - name: 核对发布结果(只许一条 Release,清单和安装包都在,按标签地址取得到)
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $tag = $env:GITHUB_REF_NAME
+          $ver = $tag -replace '^v', ''
+          $tags = gh api "repos/$env:GITHUB_REPOSITORY/releases" --paginate --jq '.[].tag_name'
+          $n = @($tags | Where-Object { $_ -eq $tag }).Count
+          if ($n -ne 1) { throw "标签 $tag 有 $n 条 Release(应该正好 1 条)" }
+          $names = @(gh release view $tag --json assets --jq '.assets[].name')
+          Write-Host ("Release 里的文件: " + ($names -join ', '))
+          if ($names -notcontains 'latest.yml') { throw '缺 latest.yml' }
+          if (-not ($names | Where-Object { $_ -like '*.exe' })) { throw '缺安装包' }
+          $yml = (Invoke-WebRequest -UseBasicParsing "https://github.com/$env:GITHUB_REPOSITORY/releases/download/$tag/latest.yml").Content
+          if ($yml -is [byte[]]) { $yml = [Text.Encoding]::UTF8.GetString($yml) }
+          if ($yml -notmatch "(?m)^version:\s*$([regex]::Escape($ver))\s*$") { throw "按标签地址取到的 latest.yml 版本不对:`n$yml" }
+          Write-Host "按标签地址取到的更新清单版本: $ver"
 
       - name: 上传构建产物(便于排查)
         if: always()
