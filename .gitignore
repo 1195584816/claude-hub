@@ -12,6 +12,7 @@ notify-config.json
 session-titles.json
 usage-cache.json
 prompts.json
+auth.json
 pastes/
 *.bak
 *.json.bak*
