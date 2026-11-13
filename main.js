@@ -13,6 +13,7 @@ const git = require('./lib/git');
 const P = require('./lib/paths');
 const discover = require('./lib/discover');
 const agentApi = require('./lib/agent-api');
+const claudeCli = require('./lib/claude-cli');
 const { writeJsonAtomic } = require('./lib/atomic-json');
 const SETTINGS = P.CLAUDE_SETTINGS;
 
@@ -156,9 +157,10 @@ async function startAgentControl() {
   const cfg = loadAgentConfig();
   agentState = { ok: false, host: cfg.host, port: cfg.port, error: '', enabled: cfg.enabled };
   if (!cfg.enabled) return agentState;
-  const claudeCmdPath = process.env.APPDATA ? path.join(process.env.APPDATA, 'npm', 'claude.cmd') : 'claude.cmd';
+  // 老规矩不变(npm 那个 claude.cmd → 否则按 PATH 找 claude.cmd);只给「只用官方安装器装的电脑」多一条兜底。
+  // 异步 + 限时:这里在启动路径上,同步扫 PATH 遇到连不上的网络路径会把窗口冻住。
   const runner = agentApi.createClaudeRunner({
-    claudeCmd: fs.existsSync(claudeCmdPath) ? claudeCmdPath : 'claude.cmd',
+    claudeCmd: await claudeCli.agentClaudeCmd(),
     timeoutMs: 30 * 60e3
   });
   agentService = agentApi.createTaskService({
@@ -397,7 +399,7 @@ ipcMain.handle('hub:quota', (e, force) => new Promise((resolve) => {
   if (!force && quotaCache.data && Date.now() - quotaCache.at < 60e3) { resolve(quotaCache.data); return; }
   const env = {};
   for (const [k, v] of Object.entries(process.env)) { if (!/^CLAUDE_?CODE/i.test(k)) env[k] = v; }
-  exec('claude --no-session-persistence -p "/usage"', { timeout: 90000, env, maxBuffer: 4 * 1024 * 1024 }, (err, out) => {
+  exec('claude --no-session-persistence -p "/usage"', { timeout: 90000, env: claudeCli.withClaudeOnPath(env), maxBuffer: 4 * 1024 * 1024 }, (err, out) => {
     const s = String(out || '');
     const pick = (re) => { const m = s.match(re); return m ? { pct: +m[1], reset: (m[2] || '').trim() } : null; };
     const d = {
@@ -557,9 +559,13 @@ ipcMain.handle('hub:saveGlobalCfg', (e, cfg) => {
 ipcMain.handle('hub:guide', () => {
   try { return fs.readFileSync(path.join(__dirname, 'docs', '使用说明.md'), 'utf8'); } catch { return '(说明文档缺失)'; }
 });
+// 这台电脑装没装 Claude Code。没装的话界面给一张说明卡 + 一键安装,而不是让终端甩一屏红字。
+// ⚠️ 检测本身出任何岔子都当成「装了」:宁可回到老样子(红字),也不能因为检测有毛病就不让人开会话。
+// 异步 + 限时(PATH 里有连不上的网络路径时,同步查会把整个窗口卡住几十秒);超时也当成「装了」。
+ipcMain.handle('claude:check', async () => { try { return await claudeCli.checkForUi(); } catch { return { found: true, unsure: true }; } });
 // Claude Code 版本检查:本机版本 vs npm 最新版
 ipcMain.handle('hub:checkUpdate', () => new Promise((resolve) => {
-  exec('claude --version', { timeout: 20000 }, (e1, o1) => {
+  exec('claude --version', { timeout: 20000, env: claudeCli.withClaudeOnPath(process.env) }, (e1, o1) => {
     const cur = String(o1 || '').match(/(\d+\.\d+\.\d+)/);
     exec('npm view @anthropic-ai/claude-code version --registry=https://registry.npmmirror.com', { timeout: 25000 }, (e2, o2) => {
       const latest = String(o2 || '').trim().match(/(\d+\.\d+\.\d+)/);
@@ -574,7 +580,7 @@ ipcMain.handle('hub:openCli', (e, projPath, title, sid) => {
   try {
     spawn('wt.exe', ['-w', 'claudehub', 'new-tab', '--title', title || 'Claude',
       '-d', projPath, 'powershell', '-NoProfile', '-NoExit', '-ExecutionPolicy', 'Bypass',
-      '-Command', cmd], { detached: true, stdio: 'ignore' }).unref();
+      '-Command', cmd], { detached: true, stdio: 'ignore', env: claudeCli.withClaudeOnPath(process.env) }).unref();
     return { ok: true };
   } catch (err) { return { ok: false, msg: String(err) }; }
 });
@@ -672,8 +678,9 @@ function spawnTerm(projPath, title, sid, cmdOverride) {
     // 净化环境:去掉 CLAUDE_CODE 标记,否则里面的 claude 会当自己是子会话,转录不落盘
     const env = {};
     for (const [k, v] of Object.entries(process.env)) { if (!/^CLAUDE_?CODE/i.test(k)) env[k] = v; }
+    // 官方安装器把 claude 装到 用户目录\.local\bin 但不加 PATH —— 这里补上(追加在末尾,已经找得到的电脑行为不变)
     const p = pty.spawn('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', cmd], {
-      name: 'xterm-256color', cols: 120, rows: 32, cwd: projPath, env
+      name: 'xterm-256color', cols: 120, rows: 32, cwd: projPath, env: claudeCli.withClaudeOnPath(env)
     });
     terms.set(id, p);
     termMeta.set(id, { projPath, short: title || '', sid: sid || '', title: title || '', buf: '' });

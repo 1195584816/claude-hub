@@ -88,6 +88,7 @@ contextBridge.exposeInMainWorld('hub', {
   appDownloadUpdate: () => ipcRenderer.send('app:downloadUpdate'),
   appInstallUpdate: () => ipcRenderer.send('app:installUpdate'),
   openExternal: (u) => ipcRenderer.invoke('app:openExternal', u),
+  claudeCheck: () => ipcRenderer.invoke('claude:check'),
   authStatus: () => ipcRenderer.invoke('auth:status'),
   authSignIn: (email, password) => ipcRenderer.invoke('auth:signIn', email, password),
   authSignUp: (email, password) => ipcRenderer.invoke('auth:signUp', email, password),

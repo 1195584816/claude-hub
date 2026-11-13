@@ -950,6 +950,13 @@ body[data-theme="azure"] .brandmark, body[data-theme="daylight"] .brandmark { ba
   </div>
 </div>
 
+<div class="viewer" id="clbox" style="z-index:65;">
+  <div class="box" style="width:460px;">
+    <div class="head"><b>还没装 Claude Code</b><span class="close" onclick="dismissClaudeMissing()" id="clclose"></span></div>
+    <div class="body" style="white-space:normal;" id="clBody"></div>
+  </div>
+</div>
+
 <div class="viewer" id="authbox">
   <div class="box" style="width:400px;">
     <div class="head"><b id="authTitle">登录</b><span class="close" onclick="closeAuth()" id="aclose"></span></div>
@@ -1145,6 +1152,7 @@ document.getElementById('wclose').innerHTML = ico('x');
 document.getElementById('vclose').innerHTML = ico('x');
 document.getElementById('sclose').innerHTML = ico('x');
 document.getElementById('aclose').innerHTML = ico('x');
+document.getElementById('clclose').innerHTML = ico('x');
 document.getElementById('acctpill').insertAdjacentHTML('afterbegin', ico('user', 'sm'));
 document.getElementById('gclose').innerHTML = ico('x');
 ['srchClose', 'gitClose', 'pmtClose', 'mcpClose', 'impClose'].forEach(id => { const el = document.getElementById(id); if (el) el.innerHTML = ico('x'); });
@@ -2523,7 +2531,9 @@ async function restoreTabs() {
   let n = 0, skipped = 0;
   for (const t of saved) {
     if (!projects.some(p => p.path === t.projPath)) { skipped++; continue; }   // 项目已删就跳过
-    try { await openTerm(t.projPath, t.projShort, t.sid || '', t.title || t.projShort); n++; } catch { skipped++; }
+    // 第 6 个参数 true = 不过「装没装 Claude Code」那道闸:恢复上次的标签必须和以前一模一样。
+    // 不这样的话,万一检测判错,这些标签一个都开不出来,紧接着下面的 saveOpenTabs 还会把空列表存盘 —— 标签就丢了。
+    try { await openTerm(t.projPath, t.projShort, t.sid || '', t.title || t.projShort, '', true); n++; } catch { skipped++; }
     restoreDone = n + skipped;
     renderProjects();          // 每恢复一个就刷一次,用户能看见在动
   }
@@ -2926,15 +2936,112 @@ async function openTermLink(raw) {
   hubToast('路径不存在:' + r.path.slice(-48));
 }
 
-async function openTerm(projPath, projShort, sid, title, cmdOverride) {
+// ---------- 没装 Claude Code 时的说明卡 ----------
+// 总控不带 Claude Code,开会话就是在终端里敲 claude。没装的电脑以前只会看到一屏 PowerShell 红字。
+// 现在:要跑 claude 之前先问主进程找不找得到;找不到就弹这张卡(一键安装 / 重新检测 / 直接打开)。
+// ⭐ 判错的代价不对称:把「装了」判成「没装」会挡住本来能用的人。所以 ——
+//    查不出来、接口没有、接口抛错,一律放行;卡片上永远留一个「直接打开」,检测再怎么错也拦不死人。
+// <claude-gate>
+let claudeOk = false;      // 找到过一次(或用户说「我确定装了」)就不再问
+let clQueue = [];          // 被拦下的那些开会话,装好 / 放行后接着开
+let clInfo = null;
+const needsClaude = (cmd) => !cmd || /^claude(\s|;|$)/.test(cmd);   // codex / gemini 那些不归这里管
+async function claudeReady(args) {
+  if (claudeOk || !hub.claudeCheck) return true;
+  let c;
+  try { c = await hub.claudeCheck(); } catch { return true; }
+  // 没查明白才放行的(超时 / 出岔子)不记死,下次还查;明确找到了才记住
+  if (!c || c.found !== false) { if (!c || !c.unsure) claudeOk = true; return true; }
+  clInfo = c;
+  // 同一次点击被拦多回(卡片开着时又点了一下)只留一份,放行时才不会开出重复的标签
+  const key = (a) => [a.projPath, a.sid || '', a.cmdOverride || '', a.title || ''].join('\u0001');
+  if (clQueue.length < 20 && !clQueue.some(a => key(a) === key(args))) clQueue.push(args);
+  showClaudeMissing('');
+  return false;
+}
+// 把被拦下的那些会话都开出来(跳过检测)
+function claudeFlush() {
+  const q = clQueue; clQueue = [];
+  for (const a of q) openTerm(a.projPath, a.projShort, a.sid, a.title, a.cmdOverride, true);
+}
+const claudeInstallTab = () => termTabs.find(t => t.clInstall);
+function showClaudeMissing(msg) {
+  const canInstall = !!(clInfo && clInfo.installCmd);
+  document.getElementById('clBody').innerHTML = `
+    <div class="authnote">这台电脑上没找到 <b>Claude Code</b>。总控是它的驾驶舱,要先装上它才能开会话。</div>
+    <div class="authnote" style="font-size:12px;">
+      ${canInstall ? '· 点「一键安装」会用官方安装程序来装,不用另装别的东西,也不用管理员权限。<br>' : ''}
+      · 装好第一次启动时,会让你在浏览器里登录 Claude 账号(要有 Claude 付费订阅或 API 账号,免费版不含 Claude Code)。<br>
+      · 安装和登录都需要这台电脑能连上 claude.ai。
+    </div>
+    <div class="autherr" id="clErr"></div>
+    <div class="authacts">
+      ${canInstall ? `<button class="btn" id="clGo" onclick="claudeInstall()">${claudeInstallTab() ? '正在安装,去看看' : '一键安装'}</button>` : ''}
+      <button class="btn ghost" onclick="claudeRecheck()">我装好了,重新检测</button>
+      <button type="button" class="authsw" onclick="hub.openExternal(clInfo && clInfo.doc || 'https://code.claude.com/docs/en/setup')">官方安装说明</button>
+    </div>
+    <div class="tmsg" style="margin-top:12px;">其实已经装了、是这里认错了?<button type="button" class="authsw" style="margin-left:6px;" id="clForce" onclick="claudeForceOpen()">直接打开</button></div>`;
+  document.getElementById('clErr').textContent = msg || '';
+  document.getElementById('clbox').classList.add('open');
+}
+function closeClaudeMissing() { document.getElementById('clbox').classList.remove('open'); }
+// 用户自己关掉卡片(X / Esc)= 这几次不开了。不清的话,下次放行时会把攒下的重复会话一起开出来。
+function dismissClaudeMissing() { clQueue = []; closeClaudeMissing(); }
+async function claudeInstall() {
+  const a = clQueue[0], cmd = clInfo && clInfo.installCmd;
+  closeClaudeMissing();
+  // 已经有一个安装在跑:切过去看,不再开第二个(两个安装器同时写同一个目录)
+  const running = claudeInstallTab();
+  if (running) { clQueue = []; activateTerm(running.id); return; }
+  if (!a || !cmd) return;
+  const before = new Set(termTabs.map(t => t.id));
+  // 第 6 个参数 = 跳过检测(它自己就是来装 claude 的)
+  await openTerm(a.projPath, a.projShort, '', '安装 Claude Code', cmd, true);
+  const tab = termTabs.find(t => !before.has(t.id));
+  // 安装标签开出来了:装完它会直接启动 Claude Code,被拦下的那几次不用再开。
+  // 没开出来(内嵌终端起不来)的话 openTerm 已经把卡片重新亮出来说明原因,队列留着等「重新检测」。
+  if (tab) { tab.clInstall = true; clQueue = []; }
+}
+async function claudeRecheck() {
+  let c = null;
+  try { c = await hub.claudeCheck(); } catch {}      // 查不出来 = 放行
+  if (c && c.found === false) {
+    // 等结果的这会儿用户已经把卡片关了(X / Esc / 直接打开):别再把它弹回来
+    if (!document.getElementById('clbox').classList.contains('open')) return;
+    clInfo = c;
+    showClaudeMissing('还是没找到。如果安装还在跑,等它跑完再点;如果是刚才在别处装的,重启一下总控再试,或者点下面的「直接打开」。');
+    return;
+  }
+  claudeOk = true;
+  closeClaudeMissing();
+  claudeFlush();
+}
+// 用户说「我确定装了」:信他。以后也不再问。
+function claudeForceOpen() {
+  claudeOk = true;
+  closeClaudeMissing();
+  claudeFlush();
+}
+// </claude-gate>
+
+async function openTerm(projPath, projShort, sid, title, cmdOverride, skipCheck) {
   if (sid) { const ex = termTabs.find(t => t.sid === sid); if (ex) { activateTerm(ex.id); return; } }
+  if (!skipCheck && needsClaude(cmdOverride) && !(await claudeReady({ projPath, projShort, sid, title, cmdOverride }))) return;
   let before = null;   // 新会话:先记下这个项目已有哪些 sid,好认领新生成的那个
   if (!sid) {
     const pj = projects.find(x => x.path === projPath);
     if (pj) { try { before = new Set((await hub.sessions(pj.sessSlug, pj.mainSession, pj.path)).map(x => x.sid)); } catch {} }
   }
   const r = await hub.termOpen(projPath, projShort, sid || '', cmdOverride || '');
-  if (!r.ok) { hub.openCli(projPath, projShort, sid || ''); return; }
+  if (!r.ok) {
+    // 内嵌终端起不来时原本的退路是开外部终端跑 claude —— 但那条路带不了命令,
+    // 对「一键安装」来说等于在外部终端里敲一句根本不存在的 claude。这种情况改成在卡片上说清楚。
+    if (cmdOverride && clInfo && cmdOverride === clInfo.installCmd) {
+      showClaudeMissing('内嵌终端没能启动,这里没法一键安装。请点「官方安装说明」照着自己装,装好后回来点「重新检测」。');
+      return;
+    }
+    hub.openCli(projPath, projShort, sid || ''); return;
+  }
   const pane = document.createElement('div');
   pane.className = 'tpane';
   pane.id = 'tp-' + r.id;
@@ -3411,7 +3518,7 @@ async function tabRnCommit(inp, id) {
   renderTermTabs();
 }
 hub.onTermData(m => { const t = termTabs.find(x => x.id === m.id); if (t) { t.lastDataAt = Date.now(); t.term.write(m.data); } });
-hub.onTermExit(m => { const t = termTabs.find(x => x.id === m.id); if (t) t.term.write('\r\n\x1b[90m[会话进程已结束,可点 × 关闭标签]\x1b[0m\r\n'); });
+hub.onTermExit(m => { const t = termTabs.find(x => x.id === m.id); if (t) { t.clInstall = false; t.term.write('\r\n\x1b[90m[会话进程已结束,可点 × 关闭标签]\x1b[0m\r\n'); } });   // clInstall:安装进程结束了就不再算「正在安装」,否则没装上的人点不了第二次
 window.addEventListener('resize', () => { const t = termTabs.find(x => x.id === activeTerm); if (t) { try { t.fit.fit(); } catch {} } });
 
 // ===== 右栏:记忆 / 资料 / 技能 =====
@@ -4324,6 +4431,7 @@ if (hub.onAgentTask) hub.onAgentTask(task => {
   window.addEventListener('keydown', e => {
     if (e.key === 'Escape') {
       if (document.getElementById('authbox').classList.contains('open')) { closeAuth(); return; }
+      if (document.getElementById('clbox').classList.contains('open')) { dismissClaudeMissing(); return; }
       if (dropEl().classList.contains('open')) { closeDrop(); return; }
       if (document.getElementById('impbox').classList.contains('open')) { closeImport(); return; }
       if (document.getElementById('docbox').classList.contains('open')) { closeDoc(); return; }

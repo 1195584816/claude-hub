@@ -37,6 +37,8 @@ Claude Code 很强,但项目一多就散了:会话记在哪、哪个跑完了、
 
 首次启动会**自动扫描 `~/.claude/projects`** 生成你的项目列表,不用手写任何配置。
 
+**需要先有 Claude Code**(总控是它的驾驶舱,自己不带)。电脑上还没装的话,第一次点「新会话」会弹出说明,点「一键安装」即用[官方安装程序](https://code.claude.com/docs/en/setup)装好并启动,接着按 Claude Code 自己的引导在浏览器里登录 Claude 账号(需要 Claude 付费订阅或 API 账号)。
+
 ### 完成通知需要一步手动配置
 
 通知依赖 Claude Code 的 Stop 钩子。把 `hooks/claude-done-notify.ps1` 放到 `~/.claude/hooks/`,并在 `~/.claude/settings.json` 里加:
