@@ -20,6 +20,7 @@ files:
   - "!session-titles.json"
   - "!usage-cache.json"
   - "!prompts.json"
+  - "!auth.json"
   - "!修改记录.md"
   # 字体只保留简体中文常规/中等/半粗三个字重,其余语种全部剔除(43MB → 数 MB)
   - "!node_modules/misans/lib/!(Normal)/**"

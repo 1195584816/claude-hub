@@ -256,6 +256,7 @@ if (process.argv.includes('--pty-test')) {
     try { syncHookFile(); } catch {}      // 把通知钩子拷到 ~/.claude/hooks(asar 外)
     createWindow();
     writePresence();
+    auth.restore().then(pushAuth, () => {});   // 有登录令牌就悄悄续期;不等它,连不上也不影响启动
     // 启动仅限本机的小九/自动化控制 API；失败不影响桌面总控正常使用。
     startAgentControl().catch(error => { agentState.error = String(error && error.message ? error.message : error); });
     // 盯完成流:有新完成 -> 推给界面 + 任务栏闪烁 + 刷新用量
@@ -497,6 +498,26 @@ ipcMain.on('app:downloadUpdate', () => { try { updater && updater.download(); } 
 ipcMain.on('app:installUpdate', () => { try { updater && updater.installNow(); } catch {} });
 ipcMain.handle('app:version', () => app.getVersion());
 ipcMain.handle('app:openExternal', (e, url) => { try { shell.openExternal(url); return true; } catch { return false; } });
+
+// —— 账号(登录只为知道谁在用,不卡任何功能;这里出什么错都不许影响别的) ——
+// 请求走 Electron 自带的网络模块(跟着系统代理走);万一包不起来就退回 Node 的 https。
+let authRequest;
+try { const enet = require('electron').net; if (enet && typeof enet.request === 'function') authRequest = require('./lib/auth-net').electronRequest(enet); } catch {}
+// 账号模块万一起不来,换一个「永远未登录」的空壳顶上 —— 绝不能因为它让主进程起不来
+let auth;
+try { auth = require('./lib/auth').create({ file: P.AUTH, request: authRequest, meta: () => ({ appVersion: app.getVersion(), platform: process.platform }) }); }
+catch (e) {
+  console.error('[auth] 账号模块没起来:', e && e.message);
+  const off = async () => ({ ok: false, error: '账号功能暂时用不了,不影响其它功能' });
+  auth = { status: () => ({ loggedIn: false, email: '', offline: false }), signIn: off, signUp: off, signOut: async () => ({ ok: true }), restore: async () => {} };
+}
+// 界面上的登录状态只认主进程推过去的这一份:登录 / 注册 / 退出 / 启动续期完成后各推一次。
+function pushAuth() { try { if (win && !win.isDestroyed()) win.webContents.send('auth:changed', auth.status()); } catch {} }
+// 问状态立刻答,不等网络(启动续期一开始就把本地存的账号记进内存了)。
+ipcMain.handle('auth:status', () => { try { return auth.status(); } catch { return { loggedIn: false, email: '', offline: false }; } });
+ipcMain.handle('auth:signIn', async (e, email, password) => { try { return await auth.signIn(email, password); } catch { return { ok: false, error: '登录出错了,再试一次' }; } finally { pushAuth(); } });
+ipcMain.handle('auth:signUp', async (e, email, password) => { try { return await auth.signUp(email, password); } catch { return { ok: false, error: '注册出错了,再试一次' }; } finally { pushAuth(); } });
+ipcMain.handle('auth:signOut', async () => { try { return await auth.signOut(); } catch { return { ok: true }; } finally { pushAuth(); } });
 
 // 扫描磁盘上"有会话但不在清单里"的项目,供界面一键补进来
 ipcMain.handle('hub:discoverNew', () => {

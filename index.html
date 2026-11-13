@@ -567,6 +567,25 @@ body.dragging * { cursor:grabbing !important; }
 .agentpill.ok { color:var(--acc); border-color:color-mix(in srgb, var(--acc) 35%, transparent); background:color-mix(in srgb, var(--acc) 9%, transparent); }
 .agentpill.run { color:#f0c26b; border-color:rgba(240,194,107,.4); background:rgba(240,194,107,.1); }
 .agentpill.err { color:var(--red); border-color:rgba(248,113,113,.4); background:rgba(248,113,113,.1); }
+/* 账号:顶栏胶囊 + 登录弹层 */
+.acctpill { -webkit-app-region:no-drag; display:flex; align-items:center; border:1px solid var(--line2); color:var(--tx2); background:var(--ghost); border-radius:99px; padding:4px 11px; font-size:11px; font-weight:600; white-space:nowrap; flex-shrink:99999; min-width:34px; overflow:hidden; cursor:pointer; max-width:150px; transition:.13s; }
+/* 顶栏挤的时候它最先让位(邮箱显示省略号),别把右边的窗口按钮挤出去、也别把左边的品牌名挤成两行。
+   收缩权重要给到极大:弹性布局是按权重分摊的,给 100 品牌名仍会被分走 1 像素,刚好够它换行 */
+@media (max-width:1280px) { .acctpill { max-width:96px; } }
+#authbox { z-index:70; }   /* 压在所有弹层上面 —— Esc 先关的就是眼前这一个 */
+/* 挤到最小时只剩前面那个人形图标(文字被裁掉),不会剩半个字认不出是什么 */
+.acctpill span { overflow:hidden; text-overflow:ellipsis; min-width:0; padding-left:5px; }
+.acctpill:hover { color:var(--tx); border-color:color-mix(in srgb, var(--acc) 45%, transparent); }
+.acctpill.in { color:var(--acc); border-color:color-mix(in srgb, var(--acc) 35%, transparent); background:color-mix(in srgb, var(--acc) 9%, transparent); }
+.authnote { font-size:12.5px; color:var(--tx2); line-height:1.75; margin-bottom:14px; }
+.authnote b { color:var(--tx); font-weight:600; word-break:break-all; }
+.authf input { width:100%; background:var(--bg1); border:1px solid var(--line); color:var(--tx); border-radius:8px; padding:9px 11px; font-size:13px; outline:none; }
+.authf input:focus { border-color:color-mix(in srgb, var(--acc) 50%, transparent); }
+.autherr { color:var(--red); font-size:12px; line-height:1.6; min-height:19px; margin:-4px 0 8px; }
+.authacts { display:flex; align-items:center; gap:8px; }
+.authacts .btn:disabled { opacity:.6; cursor:default; }
+.authsw { margin-left:auto; font-size:12px; color:var(--acc); cursor:pointer; background:none; border:none; padding:2px 0; font-family:inherit; }
+.authsw:hover { text-decoration:underline; }
 .usagedrop { position:absolute; top:52px; right:150px; width:370px; max-height:75vh; overflow-y:auto; background:var(--float); border:1px solid var(--line2); border-radius:14px; padding:14px 16px; display:none; z-index:44; box-shadow:0 16px 50px rgba(0,0,0,.5); font-size:12px; }
 .usagedrop.open { display:block; }
 .us-row { display:flex; justify-content:space-between; gap:10px; padding:5px 2px; color:var(--tx2); font-variant-numeric:tabular-nums; }
@@ -796,6 +815,7 @@ body[data-theme="azure"] .brandmark, body[data-theme="daylight"] .brandmark { ba
   <div class="tbtn" onclick="toggleThemes()" title="主题" id="themebtn"></div>
   <div class="tbtn" onclick="toggleDrop()" title="完成通知" id="bellbtn"><span class="cnt" id="bellcnt" style="display:none"></span></div>
   <div class="tbtn" onclick="openSettings()" title="通知设置" id="gearbtn"></div>
+  <div class="acctpill" id="acctpill" onclick="openAuth()" title="点击登录 / 注册(不登录功能也完全一样)"><span>未登录</span></div>
   <div class="winbtns">
     <div class="winbtn" onclick="hub.winCtl('min')" title="最小化" id="wmin"></div>
     <div class="winbtn" onclick="hub.winCtl('max')" title="最大化/还原" id="wmax"></div>
@@ -927,6 +947,13 @@ body[data-theme="azure"] .brandmark, body[data-theme="daylight"] .brandmark { ba
   <div class="box">
     <div class="head"><b id="vtitle"></b><span class="close" onclick="closeViewer()" id="vclose"></span></div>
     <div class="body" id="vbody"></div>
+  </div>
+</div>
+
+<div class="viewer" id="authbox">
+  <div class="box" style="width:400px;">
+    <div class="head"><b id="authTitle">登录</b><span class="close" onclick="closeAuth()" id="aclose"></span></div>
+    <div class="body" style="white-space:normal;" id="authBody"></div>
   </div>
 </div>
 
@@ -1098,7 +1125,8 @@ const I = {
   droplet: '<path d="M12 2s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z"/>',
   ext: '<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><path d="M15 3h6v6"/><path d="M10 14L21 3"/>',
   pen: '<path d="M17 3a2.83 2.83 0 0 1 4 4L7.5 20.5 2 22l1.5-5.5z"/>',
-  trash: '<path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>'
+  trash: '<path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>',
+  user: '<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/>'
 };
 // Claude 官方星芒(claude.ai 的 favicon 同款,取自官方品牌资源)。
 // 它是填充图形,和上面那套 fill:none + stroke 的线性图标不是一路,所以单独放、单独渲染。
@@ -1116,6 +1144,8 @@ document.getElementById('wmax').innerHTML = ico('maxsq');
 document.getElementById('wclose').innerHTML = ico('x');
 document.getElementById('vclose').innerHTML = ico('x');
 document.getElementById('sclose').innerHTML = ico('x');
+document.getElementById('aclose').innerHTML = ico('x');
+document.getElementById('acctpill').insertAdjacentHTML('afterbegin', ico('user', 'sm'));
 document.getElementById('gclose').innerHTML = ico('x');
 ['srchClose', 'gitClose', 'pmtClose', 'mcpClose', 'impClose'].forEach(id => { const el = document.getElementById(id); if (el) el.innerHTML = ico('x'); });
 document.getElementById('srchbtn').innerHTML = ico('search');
@@ -4046,6 +4076,142 @@ async function checkHooks() {
   if (s.log) { pre.style.display = ''; pre.textContent = s.log; }
 }
 function closeSettings() { document.getElementById('settings').classList.remove('open'); }
+
+// ---------- 账号 ----------
+// 登录只是让作者知道有谁在用,不登录功能完全一样。所以:首次启动弹一次,能跳过;
+// 跳过 / 关掉 / 登录过一次之后,下次启动不再自己弹(顶栏那个胶囊随时能点开)。
+let authState = { loggedIn: false, email: '', offline: false };
+let authMode = 'in';        // in 登录 / up 注册 / sent 等邮箱确认 / me 已登录
+let authBusy = false;
+let authSeq = 0;            // 弹层每次开 / 关 / 切换 +1:在那之前发出去的请求,结果回来就不再动弹层
+let authEmail = '';
+let authPw = '';            // 只为「登录 ↔ 注册」来回切时不丢已经输的密码;关弹层 / 成功后清掉
+let authNote = '';
+function setAcct(s) {
+  if (s) authState = s;
+  const el = document.getElementById('acctpill');
+  el.classList.toggle('in', !!authState.loggedIn);
+  el.querySelector('span').textContent = authState.loggedIn ? (authState.email || '已登录') : '未登录';
+  el.title = authState.loggedIn ? '已登录:' + authState.email + '(点击可退出)' : '点击登录 / 注册(不登录功能也完全一样)';
+}
+function openAuth(mode) {
+  authMode = mode || (authState.loggedIn ? 'me' : 'in');
+  authSeq++; authBusy = false; authNote = '';
+  renderAuth();
+  document.getElementById('authbox').classList.add('open');
+}
+function closeAuth() {
+  authSeq++; authBusy = false; authPw = ''; authNote = '';
+  document.getElementById('authbox').classList.remove('open');
+  try { localStorage.setItem('authSkip', '1'); } catch {}
+}
+function switchAuth(mode) {
+  const e = document.getElementById('au_email'), p = document.getElementById('au_pw');
+  if (e) authEmail = e.value.trim();
+  if (p) authPw = p.value;
+  authSeq++; authBusy = false;
+  authMode = mode;
+  renderAuth();
+}
+function renderAuth() {
+  const body = document.getElementById('authBody');
+  document.getElementById('authTitle').textContent = { in: '登录', up: '注册', sent: '去邮箱确认', me: '账号' }[authMode];
+  if (authMode === 'me') {
+    body.innerHTML = `
+      <div class="authnote">已登录:<b>${esc(authState.email)}</b>${authState.offline ? '<br>这次启动没连上账号服务器,不影响使用。' : ''}${authNote ? '<br>' + esc(authNote) : ''}</div>
+      <div class="authacts"><button class="btn ghost" id="au_out" onclick="authLogout()">退出登录</button><button class="btn ghost" onclick="closeAuth()">关闭</button></div>
+      <div class="tmsg" style="margin-top:12px;">退出只退这台电脑,不影响你在别处的登录。</div>`;
+    return;
+  }
+  if (authMode === 'sent') {
+    body.innerHTML = `
+      <div class="authnote">验证邮件已经发到 <b>${esc(authEmail)}</b>。<br>去邮箱点一下里面的确认链接,再回来登录。没收到的话看看垃圾邮件。</div>
+      <div class="authacts"><button class="btn" onclick="switchAuth('in')">我确认好了,去登录</button><button class="btn ghost" onclick="closeAuth()">关闭</button></div>`;
+    return;
+  }
+  const up = authMode === 'up';
+  body.innerHTML = `
+    <div class="authnote">登录不登录,功能完全一样。登录了作者能知道有多少人在用,有新版本、新工具也方便通知你。</div>
+    <div class="modal-field authf"><label>邮箱</label><input type="email" id="au_email" autocomplete="username" spellcheck="false" onkeydown="if(event.key==='Enter')authSubmit()"></div>
+    <div class="modal-field authf"><label>密码${up ? '(至少 6 位)' : ''}</label><input type="password" id="au_pw" autocomplete="${up ? 'new-password' : 'current-password'}" onkeydown="if(event.key==='Enter')authSubmit()"></div>
+    <div class="autherr" id="au_err"></div>
+    <div class="authacts">
+      <button class="btn" id="au_go" onclick="authSubmit()">${up ? '注册' : '登录'}</button>
+      <button class="btn ghost" onclick="closeAuth()">暂时跳过</button>
+      <button type="button" class="authsw" onclick="switchAuth('${up ? 'in' : 'up'}')">${up ? '已有账号?去登录' : '没有账号?注册一个'}</button>
+    </div>
+    <div class="tmsg" style="margin-top:12px;">账号和作者的博客、TMS 是同一个,有的话直接登录。</div>`;
+  const e = document.getElementById('au_email');
+  e.value = authEmail;
+  document.getElementById('au_pw').value = authPw;
+  setTimeout(() => { try { (authEmail ? document.getElementById('au_pw') : e).focus(); } catch {} }, 30);
+}
+async function authSubmit() {
+  if (authBusy || (authMode !== 'in' && authMode !== 'up')) return;
+  const up = authMode === 'up';
+  const email = document.getElementById('au_email').value.trim();
+  const pw = document.getElementById('au_pw').value;
+  const err = document.getElementById('au_err');
+  const go = document.getElementById('au_go');
+  authEmail = email;
+  const seq = ++authSeq;
+  authBusy = true; go.disabled = true; go.textContent = up ? '注册中…' : '登录中…'; err.textContent = '';
+  let r;
+  try { r = await (up ? hub.authSignUp(email, pw) : hub.authSignIn(email, pw)); }
+  catch { r = { ok: false, error: '出错了,再试一次' }; }
+  // 顶栏显示什么只认主进程的真实状态,不靠这里猜
+  try { setAcct(await hub.authStatus()); } catch {}
+  // 等结果的这会儿弹层被关掉 / 切走 / 重开过:这份结果不再动弹层
+  if (seq !== authSeq) return;
+  authBusy = false;
+  if (r && r.ok && r.needConfirm) { authPw = ''; authMode = 'sent'; renderAuth(); return; }
+  if (r && r.ok) {
+    if (r.persisted === false) {
+      authPw = ''; authMode = 'me';
+      authNote = '登录成功了,但这台电脑没能存下登录状态,下次启动要重新登录。';
+      renderAuth();
+      return;
+    }
+    closeAuth();
+    return;
+  }
+  go.disabled = false; go.textContent = up ? '注册' : '登录';
+  err.textContent = (r && r.error) || '出错了,再试一次';
+}
+async function authLogout() {
+  if (authBusy) return;
+  const seq = ++authSeq;
+  authBusy = true;
+  const b = document.getElementById('au_out');
+  if (b) { b.disabled = true; b.textContent = '正在退出…'; }
+  let r = null;
+  try { r = await hub.authSignOut(); } catch {}
+  try { setAcct(await hub.authStatus()); } catch {}
+  if (seq !== authSeq) return;
+  authEmail = '';
+  if (r && r.persisted === false) {
+    // 本地那份登录文件没清掉(多半被别的程序占着):得说一声,不然下次启动又自己登回来,用户以为没退成
+    authBusy = false; authMode = 'in'; renderAuth();
+    document.getElementById('au_err').textContent = '已经退出了,但这台电脑上存的登录文件没能删掉(可能被别的程序占着),下次启动可能又会自动登录。可以过一会儿再退一次。';
+    return;
+  }
+  closeAuth();
+}
+function initAuth() {
+  if (!hub.authStatus) return;
+  // 主进程每次登录状态变了都会推一次(启动续期完成、登录、退出)
+  hub.onAuthChanged && hub.onAuthChanged(s => {
+    setAcct(s);
+    const open = document.getElementById('authbox').classList.contains('open');
+    if (open && authMode === 'me' && !s.loggedIn) { authMode = 'in'; renderAuth(); }
+  });
+  hub.authStatus().then(s => {
+    setAcct(s);
+    let skipped = false;
+    try { skipped = localStorage.getItem('authSkip') === '1'; } catch {}
+    if (!s.loggedIn && !skipped) openAuth('in');
+  }).catch(() => {});
+}
 async function saveCfgSilent() {
   const g = id => document.getElementById(id);
   const gmv = g('g_model').value;
@@ -4154,8 +4320,10 @@ if (hub.onAgentTask) hub.onAgentTask(task => {
   applyZen();
   document.getElementById('srchInput').addEventListener('keydown', e => { if (e.key === 'Enter') doSearch(); });
   initAppUpdate();
+  try { initAuth(); } catch {}     // 账号这块出什么错都不许连累后面的启动步骤
   window.addEventListener('keydown', e => {
     if (e.key === 'Escape') {
+      if (document.getElementById('authbox').classList.contains('open')) { closeAuth(); return; }
       if (dropEl().classList.contains('open')) { closeDrop(); return; }
       if (document.getElementById('impbox').classList.contains('open')) { closeImport(); return; }
       if (document.getElementById('docbox').classList.contains('open')) { closeDoc(); return; }
