@@ -3024,6 +3024,7 @@ function claudeForceOpen() {
 }
 // </claude-gate>
 
+let lastProxyNote = '';
 async function openTerm(projPath, projShort, sid, title, cmdOverride, skipCheck) {
   if (sid) { const ex = termTabs.find(t => t.sid === sid); if (ex) { activateTerm(ex.id); return; } }
   if (!skipCheck && needsClaude(cmdOverride) && !(await claudeReady({ projPath, projShort, sid, title, cmdOverride }))) return;
@@ -3042,6 +3043,8 @@ async function openTerm(projPath, projShort, sid, title, cmdOverride, skipCheck)
     }
     hub.openCli(projPath, projShort, sid || ''); return;
   }
+  // 这个终端跟着系统代理走了:说一声(同一个地址只说一次,免得恢复十几个标签弹十几条)
+  if (r.proxy && r.proxy !== lastProxyNote) { lastProxyNote = r.proxy; hubToast('终端已跟随系统代理 ' + r.proxy.replace(/^http:\/\//, '')); }
   const pane = document.createElement('div');
   pane.className = 'tpane';
   pane.id = 'tp-' + r.id;

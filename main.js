@@ -14,6 +14,7 @@ const P = require('./lib/paths');
 const discover = require('./lib/discover');
 const agentApi = require('./lib/agent-api');
 const claudeCli = require('./lib/claude-cli');
+const sysProxy = require('./lib/sysproxy').create();
 const { writeJsonAtomic } = require('./lib/atomic-json');
 const SETTINGS = P.CLAUDE_SETTINGS;
 
@@ -161,6 +162,8 @@ async function startAgentControl() {
   // 异步 + 限时:这里在启动路径上,同步扫 PATH 遇到连不上的网络路径会把窗口冻住。
   const runner = agentApi.createClaudeRunner({
     claudeCmd: await claudeCli.agentClaudeCmd(),
+    // 自动化接口跑的也是 claude、也要联网:每次任务开始时按当时的系统代理算环境(和终端同一套规矩)
+    envFn: async () => (await sysProxy.envFor(process.env)).env,
     timeoutMs: 30 * 60e3
   });
   agentService = agentApi.createTaskService({
@@ -395,11 +398,15 @@ ipcMain.handle('hub:exportCsv', async () => {
 });
 // 官方订阅额度:跑一次 claude -p "/usage" 解析百分比(唯一能拿到官方口径的路子)
 let quotaCache = { at: 0, data: null };
-ipcMain.handle('hub:quota', (e, force) => new Promise((resolve) => {
-  if (!force && quotaCache.data && Date.now() - quotaCache.at < 60e3) { resolve(quotaCache.data); return; }
+ipcMain.handle('hub:quota', async (e, force) => {
+  if (!force && quotaCache.data && Date.now() - quotaCache.at < 60e3) return quotaCache.data;
   const env = {};
   for (const [k, v] of Object.entries(process.env)) { if (!/^CLAUDE_?CODE/i.test(k)) env[k] = v; }
-  exec('claude --no-session-persistence -p "/usage"', { timeout: 90000, env: claudeCli.withClaudeOnPath(env), maxBuffer: 4 * 1024 * 1024 }, (err, out) => {
+  // 查额度也是跑 claude、也要联网:和终端一样跟着系统代理走(envFor 永不抛)。
+  // 要等的放在 new Promise 外面等 —— 执行器写成 async 的话,里面一抛错这个 Promise 就永远挂着。
+  const px = await sysProxy.envFor(env);
+  return new Promise((resolve) => {
+  exec('claude --no-session-persistence -p "/usage"', { timeout: 90000, env: claudeCli.withClaudeOnPath(px.env), maxBuffer: 4 * 1024 * 1024 }, (err, out) => {
     const s = String(out || '');
     const pick = (re) => { const m = s.match(re); return m ? { pct: +m[1], reset: (m[2] || '').trim() } : null; };
     const d = {
@@ -412,7 +419,8 @@ ipcMain.handle('hub:quota', (e, force) => new Promise((resolve) => {
     quotaCache = { at: Date.now(), data: d };
     resolve(d);
   });
-}));
+  });
+});
 ipcMain.handle('hub:timeline', (e, sessSlug, sid) => {
   try { return usage.sessionTimeline(path.join(data.CLAUDE_PROJECTS, sessSlug), sid, 200); } catch { return []; }
 });
@@ -452,12 +460,15 @@ const mobileBridge = {
   write(id, d) { const p = terms.get(id); if (p) { try { p.write(d); } catch {} } },
   async open(projPath, short, sid, title) {
     if (!pty || !projPath) return { ok: false };
+    // 先把要等的东西(终端环境)等好,再做「查重 → 开」。这两步之间不许有 await:
+    // 手机上连点两下同一个会话时,两个请求会前后脚进来,中间有空档就会各开一个进程。
+    const px = await termEnv();
     // 已经开着同一会话就直接复用
     for (const [id, m] of termMeta) {
       if (sid && m.sid === sid) return { ok: true, id };
       if (!sid && m.projPath === projPath) return { ok: true, id };
     }
-    const r = spawnTerm(projPath, title || short, sid || '', '');
+    const r = spawnTermWith(px, projPath, title || short, sid || '', '');
     // 桌面端界面也同步显示这个新终端
     try { if (r.ok && win && !win.isDestroyed()) win.webContents.send('term:external', { id: r.id, projPath, short, sid: sid || '', title: title || short }); } catch {}
     return r;
@@ -575,12 +586,14 @@ ipcMain.handle('hub:checkUpdate', () => new Promise((resolve) => {
 }));
 ipcMain.handle('hub:projfile', (e, projPath, rel) => data.readProjectFile(projPath, rel));
 
-ipcMain.handle('hub:openCli', (e, projPath, title, sid) => {
+ipcMain.handle('hub:openCli', async (e, projPath, title, sid) => {
   const cmd = sid ? `claude --resume "${sid}"` : 'claude';
   try {
+    // 外部终端这条退路同样要跟着系统代理走、同样要补 PATH(envFor 永不抛)
+    const px = await sysProxy.envFor(process.env);
     spawn('wt.exe', ['-w', 'claudehub', 'new-tab', '--title', title || 'Claude',
       '-d', projPath, 'powershell', '-NoProfile', '-NoExit', '-ExecutionPolicy', 'Bypass',
-      '-Command', cmd], { detached: true, stdio: 'ignore', env: claudeCli.withClaudeOnPath(process.env) }).unref();
+      '-Command', cmd], { detached: true, stdio: 'ignore', env: claudeCli.withClaudeOnPath(px.env) }).unref();
     return { ok: true };
   } catch (err) { return { ok: false, msg: String(err) }; }
 });
@@ -670,17 +683,31 @@ ipcMain.handle('hub:hookStatus', () => {
 });
 ipcMain.handle('hub:syncHook', () => syncHookFile());
 // ---------- 终端 IPC ----------
-function spawnTerm(projPath, title, sid, cmdOverride) {
+// 终端用的环境。两件事:
+//   ① 净化:去掉 CLAUDE_CODE 标记,否则里面的 claude 会当自己是子会话,转录不落盘
+//   ② Claude Code 不看系统代理、只认 HTTPS_PROXY:系统代理开着就只给这个终端带上(不改全局环境变量)。
+//      用户自己设过代理变量、代理连不上、只有 SOCKS —— 都原样不动。限时且永不抛,见 lib/sysproxy.js。
+// 返回 { env, applied }。这一步是异步的(要读注册表、探端口)。
+function termEnv() {
+  const env = {};
+  for (const [k, v] of Object.entries(process.env)) { if (!/^CLAUDE_?CODE/i.test(k)) env[k] = v; }
+  return sysProxy.envFor(env);
+}
+async function spawnTerm(projPath, title, sid, cmdOverride) {
+  if (!pty) return { ok: false, msg: 'node-pty 未就绪' };
+  return spawnTermWith(await termEnv(), projPath, title, sid, cmdOverride);
+}
+// ⚠️ 这个函数必须保持同步(里面不许有 await)。调用方靠「查有没有同一个会话 → 立刻登记进 termMeta」
+// 这两步之间没有空档来防重复开;中间一旦能插进别的请求,同一个会话就会被开出两个进程写同一份转录。
+// 需要等的东西(环境)在外面等好了再传进来。
+function spawnTermWith(px, projPath, title, sid, cmdOverride) {
   if (!pty) return { ok: false, msg: 'node-pty 未就绪' };
   try {
     const id = 't' + Date.now() + Math.floor(Math.random() * 1e4);
     const cmd = cmdOverride ? cmdOverride : (sid ? `claude --resume "${sid}"` : 'claude');
-    // 净化环境:去掉 CLAUDE_CODE 标记,否则里面的 claude 会当自己是子会话,转录不落盘
-    const env = {};
-    for (const [k, v] of Object.entries(process.env)) { if (!/^CLAUDE_?CODE/i.test(k)) env[k] = v; }
     // 官方安装器把 claude 装到 用户目录\.local\bin 但不加 PATH —— 这里补上(追加在末尾,已经找得到的电脑行为不变)
     const p = pty.spawn('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', cmd], {
-      name: 'xterm-256color', cols: 120, rows: 32, cwd: projPath, env: claudeCli.withClaudeOnPath(env)
+      name: 'xterm-256color', cols: 120, rows: 32, cwd: projPath, env: claudeCli.withClaudeOnPath(px.env)
     });
     terms.set(id, p);
     termMeta.set(id, { projPath, short: title || '', sid: sid || '', title: title || '', buf: '' });
@@ -695,7 +722,7 @@ function spawnTerm(projPath, title, sid, cmdOverride) {
       if (win && !win.isDestroyed()) win.webContents.send('term:exit', { id, code: ev.exitCode });
       try { mobile.pushEvent('exit', { id }); } catch {}
     });
-    return { ok: true, id };
+    return { ok: true, id, proxy: px.applied };     // proxy:这个终端带上的代理地址(没带是空串),界面在终端顶上提示一行
   } catch (err) { return { ok: false, msg: String(err) }; }
 }
 ipcMain.handle('term:open', (e, projPath, title, sid, cmdOverride) => spawnTerm(projPath, title, sid, cmdOverride));

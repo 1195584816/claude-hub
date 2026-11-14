@@ -63,6 +63,15 @@ npm start                 # 开发运行
 npx electron-builder --win   # 打安装包
 ```
 
+### 网络:终端自动跟随系统代理
+
+Claude Code 不看 Windows 的系统代理,只认 `HTTPS_PROXY` 环境变量 —— 所以「浏览器能上、Claude Code 连不上(403)」很常见。
+总控开终端时会替你处理:系统代理开着、是 HTTP 代理、端口能连上,就**只给这个终端**带上 `HTTPS_PROXY` / `HTTP_PROXY`。
+
+- 不改系统的环境变量,不影响别的软件;代理关了,之后新开的终端就不带。
+- 你自己已经设过 `HTTPS_PROXY` / `HTTP_PROXY` 的话,总控不动它。
+- 只有 SOCKS 的系统代理用不了(Claude Code 不支持 SOCKS),这种情况请自己设一个 HTTP 代理地址。
+
 ## 数据放在哪 / 隐私
 
 - 客户端自己的配置在 `%APPDATA%/claude-hub/`(项目清单、通知配置、用量缓存)

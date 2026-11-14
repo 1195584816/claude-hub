@@ -255,7 +255,7 @@ test('接线:终端和版本检查都用补过 PATH 的环境;检测出错一律
   const main = fs.readFileSync(path.join(root, 'main.js'), 'utf8');
   const pre = fs.readFileSync(path.join(root, 'preload.js'), 'utf8');
   const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
-  assert.match(main, /pty\.spawn\('powershell\.exe',[^\n]*\n[^\n]*env: claudeCli\.withClaudeOnPath\(env\)/, '内嵌终端要用补过 PATH 的环境');
+  assert.match(main, /pty\.spawn\('powershell\.exe',[^\n]*\n[^\n]*env: claudeCli\.withClaudeOnPath\(px\.env\)/, '内嵌终端要用补过 PATH 的环境');
   assert.match(main, /exec\('claude --version', \{ timeout: 20000, env: claudeCli\.withClaudeOnPath\(process\.env\) \}/, '版本检查也要用补过 PATH 的环境');
   const h = main.split(/\r?\n/).find(l => l.includes("ipcMain.handle('claude:check'"));
   assert.ok(h, 'main.js 缺 claude:check');
@@ -285,8 +285,8 @@ test('接线:终端和版本检查都用补过 PATH 的环境;检测出错一律
   assert.ok(ot.indexOf('if (ex) { activateTerm(ex.id); return; }') < ot.indexOf('!(await claudeReady('), '切到已开的标签要排在闸前面');
   assert.ok(html.includes('if (t) { t.clInstall = false; t.term.write('), '安装进程结束后要摘掉「正在安装」的标记');
   assert.ok(html.includes('if (cmdOverride && clInfo && cmdOverride === clInfo.installCmd) {'), '内嵌终端起不来时,一键安装不许落到外部终端去跑裸 claude');
-  assert.ok(main.includes("exec('claude --no-session-persistence -p \"/usage\"', { timeout: 90000, env: claudeCli.withClaudeOnPath(env),"), '额度查询也要补 PATH');
-  assert.ok(main.includes("{ detached: true, stdio: 'ignore', env: claudeCli.withClaudeOnPath(process.env) }"), '外部终端兜底也要补 PATH');
+  assert.ok(main.includes("exec('claude --no-session-persistence -p \"/usage\"', { timeout: 90000, env: claudeCli.withClaudeOnPath(px.env),"), '额度查询也要补 PATH');
+  assert.ok(main.includes("{ detached: true, stdio: 'ignore', env: claudeCli.withClaudeOnPath(px.env) }"), '外部终端兜底也要补 PATH');
   assert.ok(html.includes("await openTerm(t.projPath, t.projShort, t.sid || '', t.title || t.projShort, '', true); n++;"), '恢复上次的标签不许过这道闸(判错会把标签列表清空)');
   assert.ok(html.includes('onclick="dismissClaudeMissing()" id="clclose"'));
   assert.ok(html.includes("if (document.getElementById('clbox').classList.contains('open')) { dismissClaudeMissing(); return; }"), 'Esc 要能关掉这张卡');
