@@ -560,20 +560,21 @@ ipcMain.handle('hub:addProject', (e, info) => {
 ipcMain.handle('hub:trashSession', (e, sessSlug, sid) => {
   try { return { ok: data.trashSession(sessSlug, sid) }; } catch (err) { return { ok: false, msg: String(err) }; }
 });
-// 全局模型/思考配置(只动 ~/.claude/settings.json 的 model / effortLevel 两个键)
+// 模型 / 思考努力:**只读不写**(2026-11-14)。
+// 以前设置里有写死的模型下拉和思考努力下拉,保存时写进 ~/.claude/settings.json:
+//   - 模型清单每出一个新模型就过时一次(用户反馈「咋没有 Fable 5.2」);
+//   - 顶层 effortLevel 对 Opus 5.5 之后的模型已经不生效(官方改成 modelSettings 里每个模型各记各的)。
+// 所以都交还给官方的 /model 和 /effort,这里只把当前值读出来给界面显示。别再加写入口。
+// <global-cfg>
 ipcMain.handle('hub:getGlobalCfg', () => {
-  try { const s = JSON.parse(fs.readFileSync(SETTINGS, 'utf8')); return { model: s.model || '', effortLevel: s.effortLevel || '' }; }
-  catch { return { model: '', effortLevel: '' }; }
-});
-ipcMain.handle('hub:saveGlobalCfg', (e, cfg) => {
+  // err:读不了(文件没有 / 坏了)。界面要把「读不到」和「没设置」分开说。
   try {
-    const s = JSON.parse(fs.readFileSync(SETTINGS, 'utf8'));
-    if (cfg.model) s.model = cfg.model;
-    if (cfg.effortLevel) s.effortLevel = cfg.effortLevel;
-    fs.writeFileSync(SETTINGS, JSON.stringify(s, null, 2), 'utf8');
-    return { ok: true };
-  } catch (err) { return { ok: false, msg: String(err) }; }
+    const s = JSON.parse(fs.readFileSync(SETTINGS, 'utf8').replace(/^\uFEFF/, ''));
+    const str = v => (typeof v === 'string' ? v : '');
+    return { model: str(s.model) };
+  } catch { return { model: '', err: true }; }
 });
+// </global-cfg>
 ipcMain.handle('hub:guide', () => {
   try { return fs.readFileSync(path.join(__dirname, 'docs', '使用说明.md'), 'utf8'); } catch { return '(说明文档缺失)'; }
 });

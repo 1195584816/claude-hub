@@ -99,6 +99,5 @@ contextBridge.exposeInMainWorld('hub', {
   updateProject: (p, patch) => ipcRenderer.invoke('hub:updateProject', p, patch),
   removeProject: (p) => ipcRenderer.invoke('hub:removeProject', p),
   saveOrder: (paths) => ipcRenderer.invoke('hub:saveOrder', paths),
-  getGlobalCfg: () => ipcRenderer.invoke('hub:getGlobalCfg'),
-  saveGlobalCfg: (c) => ipcRenderer.invoke('hub:saveGlobalCfg', c)
+  getGlobalCfg: () => ipcRenderer.invoke('hub:getGlobalCfg')   // 只读;模型 / 思考努力不再由这里写,见 main.js <global-cfg>
 });

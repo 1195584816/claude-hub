@@ -966,36 +966,23 @@ body[data-theme="azure"] .brandmark, body[data-theme="daylight"] .brandmark { ba
 
 <div class="viewer" id="settings">
   <div class="box" style="width:530px;">
-    <div class="head"><b>设置(模型 / 通知)</b><span class="close" onclick="closeSettings()" id="sclose"></span></div>
+    <div class="head"><b>设置</b><span class="close" onclick="closeSettings()" id="sclose"></span></div>
     <div class="body" style="white-space:normal;">
-      <div class="us-h" style="margin:0 0 8px;">全局模型与思考(写入 ~/.claude/settings.json,对新开会话生效)</div>
+      <div class="us-h" style="margin:0 0 8px;">模型与思考</div>
       <div class="modal-field">
         <label>模型</label>
         <div class="trow">
-          <select id="g_model" class="gsel" onchange="document.getElementById('g_model_custom').style.display = this.value === '__custom' ? '' : 'none'">
-            <option value="opus">opus · 跟随最新(推荐,现在=Opus 5.5)</option>
-            <option value="claude-opus-5-5">Opus 5.5 · 锁定此版</option>
-            <option value="claude-opus-5">Opus 5 · 锁定此版</option>
-            <option value="sonnet">sonnet · 跟随最新(轻活省额度)</option>
-            <option value="claude-sonnet-5">Sonnet 5 · 锁定此版</option>
-            <option value="haiku">haiku · 跟随最新(最省)</option>
-            <option value="claude-fable-5-1">Fable 5.1 · 双倍价,只攻坚</option>
-            <option value="claude-opus-4-5">Opus 4.5 · 旧版</option>
-            <option value="__custom">自定义…</option>
-          </select>
-          <input type="text" id="g_model_custom" style="display:none;flex:1" placeholder="模型 id,如 claude-opus-5">
+          <button class="btn sm" onclick="typeSlashCmd('/model')">在当前会话里输入 /model</button>
+          <span class="tmsg" id="g_model_now"></span>
         </div>
+        <div class="tmsg" style="margin-top:6px;line-height:1.6">换模型在会话里输入 <b>/model</b>:列表是 Claude Code 官方给的,出了新模型,Claude Code 更新后那里就有。选好按回车,以后新开的会话也用它;按 s 只管当前这个会话。</div>
       </div>
       <div class="modal-field">
         <label>思考努力</label>
         <div class="trow">
-          <select id="g_effort" class="gsel">
-            <option value="medium">medium · 轻活</option>
-            <option value="high">high · 日常推荐</option>
-            <option value="xhigh">xhigh · 烧额度大户,慎用</option>
-          </select>
-          <span class="tmsg">会话内 /model /effort 可临时覆盖;已开终端不受影响</span>
+          <button class="btn sm" onclick="typeSlashCmd('/effort')">在当前会话里输入 /effort</button>
         </div>
+        <div class="tmsg" style="margin-top:6px;line-height:1.6">调思考努力在会话里输入 <b>/effort</b>。现在是每个模型各记各的,调好以后新开的会话也沿用(max 除外,只管当前这个会话)。越高越费额度。</div>
       </div>
       <div class="modal-field">
         <label>收尾提醒线</label>
@@ -4145,12 +4132,10 @@ function runClaudeUpdate() {
 // ===== 设置 =====
 async function openSettings() {
   const gc = await hub.getGlobalCfg() || {};
-  const known = ['opus', 'claude-opus-5-5', 'claude-opus-5', 'sonnet', 'claude-sonnet-5',
-                 'haiku', 'claude-fable-5-1', 'claude-opus-4-5'];
-  const gm = document.getElementById('g_model'), gmc = document.getElementById('g_model_custom');
-  if (known.includes(gc.model)) { gm.value = gc.model; gmc.style.display = 'none'; }
-  else { gm.value = '__custom'; gmc.style.display = ''; gmc.value = gc.model || ''; }
-  document.getElementById('g_effort').value = ['medium', 'high', 'xhigh'].includes(gc.effortLevel) ? gc.effortLevel : 'high';
+  // <global-cfg-ui>
+  // 模型 / 思考努力只展示不写(2026-11-14):交给官方 /model /effort,见 main.js <global-cfg>。
+  document.getElementById('g_model_now').textContent = modelNowText(gc.model, gc.err);
+  // </global-cfg-ui>
   document.getElementById('g_pastedebug').checked = pasteDebug;
   // 下拉里没有的自定义值(以后手改 localStorage 的话)临时插一项,**不能悄悄改掉他的值** ——
   // 否则光是打开设置、甚至点一下通知渠道的「测试」(也会走 saveCfgSilent)就把手设值抹成 30 万。
@@ -4206,6 +4191,24 @@ async function checkHooks() {
   if (s.log) { pre.style.display = ''; pre.textContent = s.log; }
 }
 function closeSettings() { document.getElementById('settings').classList.remove('open'); }
+// <model-cmd>
+function modelNowText(m, err) {
+  if (err) return '读不到 settings.json,不知道现在默认是哪个';
+  return typeof m === 'string' && m ? 'settings.json 里的默认:' + m : 'settings.json 里没指定,用 Claude Code 自己的默认';
+}
+// 把 /model、/effort 填进当前会话的输入框,**不替他按回车、不清他已经打的字**:
+// 终端里此刻是不是 Claude、有没有半截草稿,这边看不见,填进去让他自己看一眼再回车最稳。
+// 只认这两条,别的一律不送(这个函数挂在 onclick 上,别让它变成「往终端里塞任意东西」的口子)。
+function typeSlashCmd(cmd) {
+  if (cmd !== '/model' && cmd !== '/effort') return;
+  const t = termTabs.find(x => x.id === activeTerm);
+  if (!t) { hubToast('先切到一个会话,在里面输入 ' + cmd + ' 再回车'); return; }
+  closeSettings();
+  activateTerm(t.id);
+  hub.termInput(t.id, cmd);
+  hubToast('已在「' + (t.title || t.projShort || '当前会话') + '」里填入 ' + cmd + ',回车就能选');
+}
+// </model-cmd>
 
 // ---------- 账号 ----------
 // 登录只是让作者知道有谁在用,不登录功能完全一样。所以:首次启动弹一次,能跳过;
@@ -4344,9 +4347,6 @@ function initAuth() {
 }
 async function saveCfgSilent() {
   const g = id => document.getElementById(id);
-  const gmv = g('g_model').value;
-  const model = gmv === '__custom' ? g('g_model_custom').value.trim() : gmv;
-  await hub.saveGlobalCfg({ model: model || 'opus', effortLevel: g('g_effort').value });   // 'opus' 是别名,自动跟到最新
   ctxRemind = Math.max(0, parseInt(g('g_ctxremind').value, 10) || 0);   // 纯界面设置,存 localStorage
   store.set('hub_ctxremind', ctxRemind);
   refreshCtx();   // 改完立刻按新线重画,别等 15 秒
