@@ -804,7 +804,7 @@ body[data-theme="azure"] .brandmark, body[data-theme="daylight"] .brandmark { ba
   <div class="quotapill" id="quotapill" onclick="toggleUsage()" title="官方订阅额度(claude /usage)">额度 <span id="qtxt">--</span><span class="qbar"><i id="qbar"></i></span></div>
   <div class="usagepill" id="usagepill" onclick="toggleUsage()" title="Token 用量(本机记账,与官方计费同源口径)">🔥 统计中…</div>
   <div class="ctxpill" id="ctxpill">上下文 <span id="ctxtxt">--</span><span class="ctxbar"><i id="ctxbar"></i></span></div>
-  <div class="agentpill" id="agentpill" title="小九/自动化本机控制 API">小九 API…</div>
+  <div class="agentpill" id="agentpill" style="display:none" title="小九/自动化本机控制 API">小九 API…</div>
   <div class="updpill" id="appupd" style="display:none" onclick="appUpdClick()" title="本客户端有新版本"></div>
   <div class="updpill" id="updpill" style="display:none" onclick="runClaudeUpdate()" title="点击自动更新 Claude Code"></div>
   <div class="tbtn" onclick="openPhone()" title="手机控制台" id="phonebtn"></div>
@@ -1301,7 +1301,8 @@ function feedGroups() {
 // 所以才会对不上。现在只有一个口径。
 function totalUnread() { return feedGroups().un.length; }
 function saveUnread() { store.set('hub_unread', unread); store.set('hub_seen', seen); }
-function processFeed(list) {
+// viewing(r):这条完成记录对应的会话,用户此刻是不是就在里面(可不传)。
+function processFeed(list, viewing) {
   const added = [];
   for (const r of list) {
     const k = fkey(r);
@@ -1309,6 +1310,10 @@ function processFeed(list) {
     seen[k] = Date.now();
     const pj = projOfRec(r);
     const id = r.sid || k;
+    // 用户此刻就在这个会话里:不进未读。他已经在看了,铃铛和红点再挂一条是多余的
+    // (2026-11-14 三月:「用户如果点过左侧的会话了,通知里就别出现了,因为他已经进去了」)。
+    // 仍然算进 added —— 新会话认领会话号、刷新列表、提示音都靠它。
+    if (viewing && viewing(r)) { added.push(r); continue; }
     // 同一会话多轮一起进来时,feed 是**新→旧**排的,照原样整体覆盖的话
     // 最后落进表里的是**最旧**那一轮 —— 孤儿卡会显示半天前的时间和任务,
     // TTL 也从那一轮算起、提前过期。所以只在更新的时候才覆盖。
@@ -3957,9 +3962,24 @@ function bindRail() {
   });
 }
 
+// <viewing-rec>
+// 这条完成记录对应的会话,用户此刻是不是就在里面:终端区开着,而且当前标签就是它。
+// 只开着面板(没在终端区)、正在恢复上次的标签、当前标签是别的会话 —— 都不算。
+function viewingRec(r) {
+  if (!r || restoring) return false;
+  if (!document.getElementById('termWrap').classList.contains('on')) return false;
+  const t = termTabs.find(x => x.id === activeTerm);
+  if (!t) return false;
+  // 只认会话号。新开的会话还没拿到会话号时**不算**:那时只能按目录猜,
+  // 而同一个项目里别的会话(外部终端、手机发起的)刚好完成的话,会被当成「人在里面」吞掉 ——
+  // 做完了却没人告诉他,比多亮一个红点糟得多。新会话第一轮完成多一个红点,点一下就消。
+  return !!t.sid && !!r.sid && t.sid === r.sid;
+}
+// </viewing-rec>
+
 hub.onFeed(async (list) => {
   feedList = list;
-  const added = processFeed(list);
+  const added = processFeed(list, viewingRec);
   projects = await hub.projects();
   // 新会话的终端标签"认领"自己的名字和sid(完成通知第一次带回来)
   for (const r of added) {
@@ -4368,6 +4388,10 @@ function renderAgentStatus(s) {
   const el = document.getElementById('agentpill');
   if (!el || !s) return;
   el.className = 'agentpill';
+  // 普通用户用不到这个接口,顶栏不常驻显示它(「就绪 / 已关」都不出现)。只在两种时候露出来:
+  //   · 外部程序真的正在通过它跑任务 —— 让人知道后台有东西在动
+  //   · 接口开着却没起来(比如端口被占)—— 这只会发生在主动开了接口的人身上,不说他没处知道
+  el.style.display = (s.enabled !== false && (!s.ok || s.running || s.queued)) ? '' : 'none';
   if (s.enabled === false) {
     el.textContent = '小九 API 已关';
     el.title = '在 agent-api.json 中启用后重启';

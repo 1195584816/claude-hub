@@ -97,6 +97,8 @@ Claude Code 不看 Windows 的系统代理,只认 `HTTPS_PROXY` 环境变量 —
 
 ClaudeHub内置仅监听`127.0.0.1`的机器控制API，可按项目和会话ID提交Claude任务、携带本机附件、查询状态与最终回复。默认使用`fork`模式继承历史但不占用GUI原会话，也不会覆盖终端里的未发送草稿。
 
+**这个接口默认是关的**(v1.1.4 起新安装的电脑;普通使用用不到它)。要用的话,打开 `%APPDATA%/claude-hub/agent-api.json`,把 `enabled` 改成 `true`,重启总控。之前版本装过、配置文件里已经是开着的,保持原样。顶栏只在有任务正在通过它执行时才显示状态。
+
 完整接口与安全说明见：[docs/agent-api.md](docs/agent-api.md)。
 
 ## License

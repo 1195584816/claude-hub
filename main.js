@@ -102,10 +102,17 @@ let agentServer = null, agentService = null;
 let agentState = { ok: false, host: '127.0.0.1', port: 8765, error: '' };
 
 function loadAgentConfig() {
-  let cfg = null;
-  try { cfg = JSON.parse(fs.readFileSync(AGENT_CFG, 'utf8')); } catch {}
+  let cfg = null, existed = false;
+  try {
+    const raw = fs.readFileSync(AGENT_CFG, 'utf8');
+    existed = true;
+    cfg = JSON.parse(raw.replace(/^﻿/, ''));      // 有些编辑器 / PowerShell 存盘会带 BOM,不去掉就解析失败
+  } catch {}
   if (!cfg || !cfg.token) {
-    cfg = { enabled: true, host: '127.0.0.1', port: 8765, token: crypto.randomBytes(32).toString('hex') };
+    // 新装的电脑(配置文件根本不存在)默认**不开**这个接口:普通用户用不到,没必要每台电脑都多开一个本机端口。
+    // 要用的人把配置文件里的 enabled 改成 true 再重启。
+    // 文件在、但读坏了或缺 token(老用户手改出了岔子):照老规矩重建成**开着**的 —— 不能因为换了默认值把人家的接口悄悄关掉。
+    cfg = { enabled: existed, host: '127.0.0.1', port: 8765, token: crypto.randomBytes(32).toString('hex') };
   }
   // 安全铁律:机器控制 API 永远只监听回环地址,配置文件也不能把它改成公网。
   cfg.host = '127.0.0.1';
