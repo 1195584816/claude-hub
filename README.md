@@ -63,6 +63,8 @@ npm start                 # 开发运行
 npx electron-builder --win   # 打安装包
 ```
 
+想一起改代码:看 [CONTRIBUTING.md](CONTRIBUTING.md)(fork → 拉分支 → 提合并请求,审核通过后合并)。
+
 ### 网络:终端自动跟随系统代理
 
 Claude Code 不看 Windows 的系统代理,只认 `HTTPS_PROXY` 环境变量 —— 所以「浏览器能上、Claude Code 连不上(403)」很常见。

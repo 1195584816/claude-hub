@@ -1,0 +1,39 @@
+name: Test
+
+# 每个合并请求、每次推到 main 都跑一遍全套测试。
+#
+# 安全:这里用的是 pull_request(不是 pull_request_target)。从别人 fork 来的合并请求,
+# 跑的时候令牌只读、拿不到任何密钥,改不了仓库、标签和 Release。
+# 不要把它换成 pull_request_target,也不要在这条流水线里加需要写权限的步骤。
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: test-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # 测试只用 Node 自带的模块,不需要装依赖(也就不用下载 Electron),所以这里没有 npm ci。
+      - name: 语法检查
+        run: |
+          node --check main.js
+          node --check preload.js
+
+      - name: 全套测试
+        run: npm test

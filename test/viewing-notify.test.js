@@ -8,6 +8,8 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+// 测试数据里的日期一律相对「今天」:未读提醒只留 14 天,写死的日期过了保留期整条测试就红(2026-11-15 炸过一次)。
+const DAY = (() => { const d = new Date(Date.now() - 2 * 86400e3); const p = n => String(n).padStart(2, '0'); return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()); })();
 
 const SRC = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 const between = (a, b) => { const i = SRC.indexOf(a), j = SRC.indexOf(b); assert.ok(i >= 0 && j > i, '找不到标记 ' + a); return SRC.slice(i, j); };
@@ -38,7 +40,7 @@ const REC = (sid, ts, cwd, task = '做完了') => ({ sid, ts, task, cwd, proj: S
 // ---------- 进不进未读 ----------
 test('人就在这个会话里:它的新完成记录不进未读,铃铛数不涨', () => {
   const m = loadFeed({ projects, feedList: [], unread: {} });
-  const list = [REC('s1', '2026-11-14 10:00:00', P)];
+  const list = [REC('s1', `${DAY} 10:00:00`, P)];
   const added = m.processFeed(list, (r) => r.sid === 's1');
   assert.deepEqual(Object.keys(m.unread), []);
   assert.equal(added.length, 1, '仍然算「新来的」:认领会话号、刷新列表、提示音都靠它');
@@ -51,23 +53,23 @@ test('人就在这个会话里:它的新完成记录不进未读,铃铛数不涨
 
 test('人在别的会话里:照常进未读', () => {
   const m = loadFeed({ projects, feedList: [], unread: {} });
-  m.processFeed([REC('s1', '2026-11-14 10:00:00', P), REC('s2', '2026-11-14 10:01:00', Q)], (r) => r.sid === 's1');
+  m.processFeed([REC('s1', `${DAY} 10:00:00`, P), REC('s2', `${DAY} 10:01:00`, Q)], (r) => r.sid === 's1');
   assert.deepEqual(Object.keys(m.unread), ['s2']);
 });
 
 test('不传 viewing(启动时那次)、viewing 抛不出东西:和以前一样全部进未读', () => {
   const m = loadFeed({ projects, feedList: [], unread: {} });
-  m.processFeed([REC('s1', '2026-11-14 10:00:00', P)]);
+  m.processFeed([REC('s1', `${DAY} 10:00:00`, P)]);
   assert.deepEqual(Object.keys(m.unread), ['s1']);
   const m2 = loadFeed({ projects, feedList: [], unread: {} });
-  m2.processFeed([REC('s1', '2026-11-14 10:00:00', P)], () => false);
+  m2.processFeed([REC('s1', `${DAY} 10:00:00`, P)], () => false);
   assert.deepEqual(Object.keys(m2.unread), ['s1']);
 });
 
 test('人在会话里时来的新一轮,不许把这个会话以前攒下的未读顺手删掉或改掉', () => {
-  const old = { projPath: Q, projLeaf: 'beta', sid: 's9', ts: '2026-11-14 09:00:00', task: '别的会话', cwd: Q };
+  const old = { projPath: Q, projLeaf: 'beta', sid: 's9', ts: `${DAY} 09:00:00`, task: '别的会话', cwd: Q };
   const m = loadFeed({ projects, feedList: [], unread: { s9: old } });
-  m.processFeed([REC('s1', '2026-11-14 10:00:00', P)], (r) => r.sid === 's1');
+  m.processFeed([REC('s1', `${DAY} 10:00:00`, P)], (r) => r.sid === 's1');
   assert.deepEqual(m.unread, { s9: old });
 });
 
@@ -101,7 +103,7 @@ test('新开的会话还没拿到会话号:一律不算在里面(按目录猜会
 test('整条链路:人停在没有会话号的新标签上,同项目两个别的会话完成 → 两条都要进未读', () => {
   const v = loadViewing({ termTabs: tabs(), activeTerm: 't3', termOn: true });
   const m = loadFeed({ projects, feedList: [], unread: {} });
-  m.processFeed([REC('ext-1', '2026-11-14 10:00:00', Q), REC('ext-2', '2026-11-14 10:01:00', Q)], v);
+  m.processFeed([REC('ext-1', `${DAY} 10:00:00`, Q), REC('ext-2', `${DAY} 10:01:00`, Q)], v);
   assert.deepEqual(Object.keys(m.unread).sort(), ['ext-1', 'ext-2']);
 });
 
