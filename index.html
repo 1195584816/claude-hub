@@ -616,6 +616,11 @@ code { background:color-mix(in srgb, var(--acc) 10%, transparent); color:var(--a
 /* ===== 铃铛提示卡:从右上角铃铛底下滑出来,点一下直达那个会话 =====
    2026-11-03 顶掉了 Windows 系统通知(本机点了没反应,见 main.js popPendingToast 的注释) */
 .bellpops { position:fixed; top:46px; right:14px; z-index:120; display:flex; flex-direction:column; gap:8px; width:330px; max-width:calc(100vw - 28px); pointer-events:none; }
+/* 右侧抽屉开着时,提示卡让到抽屉左边,别盖在抽屉上(抽屉宽度见 .drop:420px / 86vw)。
+   窗口太窄让不开就先藏起来,抽屉一关又回来 —— 卡片本身没被清掉。 */
+.bellpops { transition:right .22s cubic-bezier(.4,0,.2,1); }
+.drop.open ~ .bellpops { right:calc(min(420px, 86vw) + 14px); max-width:calc(100vw - min(420px, 86vw) - 28px); }
+@media (max-width:800px) { .drop.open ~ .bellpops { display:none; } }
 .bellpop { pointer-events:auto; background:var(--float); border:1px solid var(--line2); border-left:3px solid var(--red); border-radius:12px; padding:10px 12px; box-shadow:0 10px 34px rgba(0,0,0,.42); cursor:pointer; transform:translateX(18px); opacity:0; transition:opacity .18s, transform .18s; }
 .bellpop.on { transform:none; opacity:1; }
 .bellpop:hover { border-color:color-mix(in srgb, var(--acc) 55%, transparent); border-left-color:var(--red); }
