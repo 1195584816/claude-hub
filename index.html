@@ -368,6 +368,9 @@ body.zen .edge { display:block; }
 /* 筛选时临时撑开收起的组:不动 .closed 本身,筛完原状回来 */
 #colProj.filtering .pgrpbody.closed { display:block; }
 /* 项目列 / 会话列顶上的即时筛选框 */
+.proj .psess { display:flex; align-items:center; gap:6px; margin:5px 0 0 29px; padding:3px 8px; font-size:11.5px; color:var(--tx2); border-radius:6px; background:color-mix(in srgb, var(--acc) 9%, transparent); }
+.proj .psess span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.proj .psess:hover { color:var(--acc); background:color-mix(in srgb, var(--acc) 18%, transparent); }
 .lfbox { display:flex; align-items:center; gap:6px; margin:0 6px 8px; padding:5px 10px; background:var(--bg1); border:1px solid var(--line); border-radius:99px; }
 .lfbox:focus-within { border-color:color-mix(in srgb, var(--acc) 50%, transparent); }
 .lfbox input { flex:1; min-width:0; background:none; border:none; outline:none; color:var(--tx); font-size:12px; }
@@ -1165,6 +1168,11 @@ let seen = store.get('hub_seen', {});
 let unread = store.get('hub_unread', {});
 
 const esc = s => String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+// <esc-attr>
+// 往 HTML 属性里(value="…" / title="…" / data-x="…")塞用户敲的字,一律用这个。
+// esc 不转引号:名字里带一个英文双引号,属性就在那儿断掉,后半截变成别的属性(搜不到、还能被塞进 onclick)。
+const escAttr = s => String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+// </esc-attr>
 const escJs = s => String(s || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 const leaf = p => String(p || '').split('\\').pop();
 const fkey = r => (r.ts || '') + '|' + (r.sid || '') + '|' + (r.proj || '');
@@ -1516,7 +1524,7 @@ function initAppUpdate() {
 let srchHits = [];
 function openSearch() {
   const sc = document.getElementById('srchScope');
-  sc.innerHTML = '<option value="">所有项目</option>' + orderedProjects().map(p => `<option value="${esc(p.path)}"${p.path === curPath ? ' selected' : ''}>${esc(p.short)}</option>`).join('');
+  sc.innerHTML = '<option value="">所有项目</option>' + orderedProjects().map(p => `<option value="${escAttr(p.path)}"${p.path === curPath ? ' selected' : ''}>${esc(p.short)}</option>`).join('');
   document.getElementById('searchbox').classList.add('open');
   setTimeout(() => document.getElementById('srchInput').focus(), 40);
 }
@@ -1558,7 +1566,7 @@ async function doSearch() {
       return `<div class="sr-sess">
       <div class="sr-sh" onclick="gotoHit(${g.idx[0]})" title="打开这个会话">
         <span class="sr-proj">${esc(h.proj)}</span>
-        <span class="sr-st" title="${esc(title)}">${esc(title.slice(0, 70))}</span>
+        <span class="sr-st" title="${escAttr(title)}">${esc(title.slice(0, 70))}</span>
         <span class="sr-n">${g.idx.length} 处</span>
         <span class="sr-sid">${h.sid.slice(0, 8)}</span>
         <span class="sr-time">${h.mtime ? rel(h.mtime) : ''}</span>
@@ -1592,7 +1600,7 @@ async function openGit(cwd, short) {
     `分支 ${st.branch} · ${st.files.length} 个改动` + (st.ahead || st.behind ? ` · ↑${st.ahead} ↓${st.behind}` : '') +
     (st.last ? ` · 最近提交:${st.last.subject.slice(0, 30)}(${st.last.when})` : '');
   document.getElementById('gitFiles').innerHTML = st.files.length
-    ? st.files.map((f, i) => `<div class="gf-row" onclick="showDiff(${i})"><span class="gf-k ${f.kind}">${f.kind}</span><span class="gf-p" title="${esc(f.file)}">${esc(f.file)}</span></div>`).join('')
+    ? st.files.map((f, i) => `<div class="gf-row" onclick="showDiff(${i})"><span class="gf-k ${f.kind}">${f.kind}</span><span class="gf-p" title="${escAttr(f.file)}">${esc(f.file)}</span></div>`).join('')
     : '<div style="color:var(--tx3);font-size:12px;padding:10px;">工作区干净,没有未提交改动</div>';
   document.getElementById('gitDiff').innerHTML = '<span class="h">← 左边点一个文件看改动</span>';
   document.getElementById('gitbox').classList.add('open');
@@ -1652,7 +1660,7 @@ async function openPrompts() {
 }
 function renderPrompts() {
   document.getElementById('pmtBody').innerHTML = prompts.map((x, i) =>
-    `<div class="pmt-row"><span class="t" title="${esc(x.p)}">${esc(x.t)} — <span style="color:var(--tx3)">${esc(x.p.slice(0, 40))}</span></span>
+    `<div class="pmt-row"><span class="t" title="${escAttr(x.p)}">${esc(x.t)} — <span style="color:var(--tx3)">${esc(x.p.slice(0, 40))}</span></span>
       <button class="btn soft sm" onclick="usePrompt(${i})">塞进终端</button>
       <span class="del" style="opacity:.7" onclick="delPrompt(${i})">${ico('trash','sm')}</span></div>`).join('')
     || '<div style="color:var(--tx3);font-size:12px;padding:14px;">还没有提示词,点右上「＋ 新增」</div>';
@@ -1744,11 +1752,11 @@ function askForm(title, fields, okText) {
       <div class="modal-field">
         <label>${esc(f.label)}${f.required ? ' <span style="color:var(--red)">*</span>' : ''}</label>
         ${f.type === 'dir'
-          ? `<div class="trow"><input type="text" id="fm${i}" value="${esc(f.value || '')}" placeholder="${esc(f.placeholder || '')}" style="flex:1" readonly>
+          ? `<div class="trow"><input type="text" id="fm${i}" value="${escAttr(f.value || '')}" placeholder="${escAttr(f.placeholder || '')}" style="flex:1" readonly>
              <button class="btn ghost sm" onclick="pickDirInto('fm${i}')">选择目录…</button></div>`
           : f.type === 'pick'
-          ? `<select id="fm${i}">${(f.options || []).map(o => `<option value="${esc(o.v)}"${o.v === f.value ? ' selected' : ''}>${esc(o.t)}</option>`).join('')}</select>`
-          : `<input type="text" id="fm${i}" value="${esc(f.value || '')}" placeholder="${esc(f.placeholder || '')}">`}
+          ? `<select id="fm${i}">${(f.options || []).map(o => `<option value="${escAttr(o.v)}"${o.v === f.value ? ' selected' : ''}>${esc(o.t)}</option>`).join('')}</select>`
+          : `<input type="text" id="fm${i}" value="${escAttr(f.value || '')}" placeholder="${escAttr(f.placeholder || '')}">`}
         ${f.hint ? `<div class="hint">${esc(f.hint)}</div>` : ''}
       </div>`).join('');
     document.getElementById('formbox').classList.add('open');
@@ -1932,12 +1940,13 @@ function projStatusText(p) {
 function projRow(p, i) {
   const u = unreadOf(p);
   const runN = (typeof termTabs !== 'undefined') ? termTabs.filter(t => t.projPath === p.path).length : 0;
-  return `<div class="proj${p.path === curPath ? ' sel' : ''}" draggable="true" data-path="${esc(p.path)}"
-    data-q="${esc((p.short + ' ' + p.path + ' ' + groupOf(p)).toLowerCase())}"
+  return `<div class="proj${p.path === curPath ? ' sel' : ''}" draggable="true" data-path="${escAttr(p.path)}"
+    data-q="${escAttr((p.short + ' ' + p.path + ' ' + groupOf(p)).toLowerCase())}"
     ondragstart="dragStart(event)" ondragend="dragEnd(event)" ondragover="dragOver(event)" ondragleave="dragLeave(event)" ondrop="dropOn(event)"
     onclick="selProj(this.dataset.path)" oncontextmenu="projMenu(this.dataset.path, event)" title="右键:重命名 / 分组 / 打开目录…">
     <div class="nm"><span class="num">${i}</span><i class="sdot ${projStatus(p)}" data-st="${projStatus(p)}" title="${projStatusText(p)}"></i><span class="pname">${esc(p.short)}</span>${u.cnt ? `<span class="ucnt">${u.cnt}</span>` : ''}</div>
     <div class="meta"><span>${p.sessCount} 会话</span>${p.tok ? `<span>·</span><span class="protok">${fmtTok(p.tok)} tok</span>` : ''}<span>·</span><span>${rel(p.lastActive)}</span>${runN ? `<span class="runbadge" onclick="event.stopPropagation();gotoTerm(this.closest('.proj').dataset.path)" title="打开此项目的终端面板">${ico('terminal')}${runN}</span>` : ''}</div>
+    ${psessHtml(p)}
   </div>`;
 }
 // 左栏页签:全部项目 / 进行中会话
@@ -1960,7 +1969,7 @@ function renderActive() {
     const pj = projects.find(p => p.path === t.projPath);
     const run = t.id === activeTerm;
     return `<div class="actrow${run ? ' on' : ''}" data-tid="${t.id}" onmousedown="dndDown(event, '${t.id}')" oncontextmenu="termMenu('${t.id}', event)"
-      onclick="if(!justDragged)activateTerm('${t.id}')" title="${esc(t.title)}(按住拖动排序 · 右键更多)">
+      onclick="if(!justDragged)activateTerm('${t.id}')" title="${escAttr(t.title)}(按住拖动排序 · 右键更多)">
       <i class="sdot ${termStatus(t)}" data-st="${termStatus(t)}" title="${termStatusText(t)}"></i>
       <div class="info">
         <div class="t1">${esc(t.title)}</div>
@@ -1983,6 +1992,18 @@ function renderProjects() {
   const list = orderedProjects();
   order = list.map(p => p.path); store.set('hub_order', order);
   const el = document.getElementById('colProj');
+  // <proj-filter-focus>
+  // 重绘会把筛选框连带重建。他正在框里打字(或刚点进去)的话,重建完把焦点、光标、原样的字还回去 ——
+  // 否则:改完会话名马上点这个框,改名落盘后的重绘正好把刚拿到的焦点抢走,字打不进去。
+  const fOld = document.getElementById('projFilter');
+  const fKeep = (fOld && document.activeElement === fOld) ? { v: fOld.value, a: fOld.selectionStart, b: fOld.selectionEnd } : null;
+  const restoreFilterFocus = () => {
+    const n = fKeep && document.getElementById('projFilter');
+    if (!n) return;
+    n.value = fKeep.v; n.focus();
+    try { n.setSelectionRange(fKeep.a, fKeep.b); } catch {}
+  };
+  // </proj-filter-focus>
   // 按分组归拢,组内保持手动排序;序号按全局顺序
   const groups = [];
   const idxOf = new Map(list.map((p, i) => [p.path, i + 1]));
@@ -1992,7 +2013,7 @@ function renderProjects() {
     if (!bucket) { bucket = { name: g, items: [] }; groups.push(bucket); }
     bucket.items.push(p);
   }
-  el.innerHTML = ltabsHtml() + filterBox('projFilter', projFilter, '筛项目…(名字 / 路径 / 分组)') +
+  el.innerHTML = ltabsHtml() + filterBox('projFilter', projFilter, '筛项目 / 改过名的会话…') +
     `<div class="secrow"><span class="sectlabel">项目 Projects</span><span class="sechint">拖动排序 · 右键分组</span></div>` +
     groups.map(g => {
       const closed = !!grpClosed[g.name];
@@ -2009,6 +2030,7 @@ function renderProjects() {
        <button class="btn ghost" onclick="newProject()">${ico('plus','sm')}新建项目</button>
        <button class="btn ghost" onclick="openImport()" title="把已有的目录加进清单(不会动目录里的任何文件)">${ico('folder','sm')}导入已有</button>
      </div>`;
+  restoreFilterFocus();
   applyProjFilter();        // 重绘会把输入框连带重建,筛选状态要跟着重新贴回去
   const hr = document.getElementById('heroRunN');
   if (hr && curPath && typeof termTabs !== 'undefined') {
@@ -2022,7 +2044,7 @@ function renderProjects() {
 let projFilter = '', sessFilter = '';
 function filterBox(id, val, ph) {
   return `<div class="lfbox"><span class="lfi">${ico('search','sm')}</span>` +
-    `<input id="${id}" value="${esc(val || '')}" placeholder="${esc(ph)}" spellcheck="false"` +
+    `<input id="${id}" value="${escAttr(val || '')}" placeholder="${escAttr(ph)}" spellcheck="false"` +
     ` oninput="${id === 'projFilter' ? 'applyProjFilter()' : 'applySessFilter()'}">` +
     `<span class="lfx" title="清空" onclick="clearFilter('${id}')">${ico('x','sm')}</span></div>`;
 }
@@ -2033,6 +2055,53 @@ function clearFilter(id) {
   (id === 'projFilter' ? applyProjFilter : applySessFilter)();
   el.focus();
 }
+// <proj-filter-hit>
+// 左栏筛选:一个项目该不该留、它底下哪些「改过名的会话」该亮出来。
+// 项目自己(名字/路径/分组)中了,或者有会话名中了,这一行都留;会话行只在自己中了的时候亮。
+// 没输字 = 全部项目照常显示,会话行一条不亮。
+function projFilterHit(q, projQ, sessQs) {
+  q = String(q || '');
+  const sess = (sessQs || []).map(s => !!q && String(s || '').includes(q));
+  return { show: !q || String(projQ || '').includes(q) || sess.some(Boolean), sess };
+}
+// 项目行底下那几条「改过名的会话」。默认藏着,筛选中了才亮(见 applyProjFilter)。
+// sid 和名字走 data- 属性再由 onclick 读回来,不往 onclick 里拼字符串。
+function psessHtml(p) {
+  return ((p && p.named) || []).map(s => `<div class="psess" style="display:none" data-sid="${escAttr(s.sid)}" data-q="${escAttr(String(s.title).toLowerCase())}"
+      onclick="event.stopPropagation();goNamedSess(this.closest('.proj').dataset.path, this.dataset.sid)" title="进到这个会话">${ico('terminal','sm')}<span>${esc(s.title)}</span></div>`).join('');
+}
+// 改完会话名,把左栏那份「改过名的会话」当场跟上(否则要等下一次刷新项目清单才搜得到)
+function noteSessName(sid, title, projPath) {
+  if (!sid || !title) return;
+  let hit = false;
+  for (const p of projects) {
+    const it = (p.named || []).find(x => x.sid === sid);
+    if (it) { it.title = title; hit = true; }
+  }
+  if (!hit) {
+    const p = projects.find(x => x.path === projPath);
+    if (p) (p.named = p.named || []).unshift({ sid, title });
+  }
+}
+// </proj-filter-hit>
+// 点左栏筛出来的会话行:进到那个项目、定位到那条会话。
+// 中间列表只列最近 40 条;这条更老、列表里没有的话,直接把它接着开起来,别让他点了像没反应。
+// ⚠️ namedGoing 这道闸不能省:openTerm 要等好几拍才把标签登记上,这期间再点一次(双击)会再开一个进程
+//    接同一个会话,两个进程写同一份转录。所以同一个 sid 正在处理时,后面的点击直接不理,一直挡到 openTerm 回来。
+const namedGoing = new Set();
+async function goNamedSess(path, sid) {
+  if (!sid || namedGoing.has(sid)) return;
+  namedGoing.add(sid);
+  try {
+    await selProj(path, sid);
+    if (curPath !== path || curSid !== sid) return;     // 等的时候他又点去别的项目 / 别的会话了
+    if (curSess.some(s => s.sid === sid) || termTabs.some(t => t.sid === sid)) return;
+    const p = projects.find(x => x.path === path);
+    const it = p && (p.named || []).find(x => x.sid === sid);
+    if (p && it) await openTerm(p.path, p.short, sid, it.title);
+  } finally { namedGoing.delete(sid); }
+}
+// <proj-filter-apply>
 function applyProjFilter() {
   const el = document.getElementById('projFilter');
   const q = projFilter = (el ? el.value : projFilter).trim().toLowerCase();
@@ -2040,7 +2109,10 @@ function applyProjFilter() {
   document.querySelectorAll('#colProj .pgrp').forEach(gr => {
     let shown = 0;
     gr.querySelectorAll('.proj').forEach(row => {
-      const hit = !q || (row.dataset.q || '').includes(q);
+      const subs = [...row.querySelectorAll('.psess')];
+      const r = projFilterHit(q, row.dataset.q, subs.map(x => x.dataset.q));
+      subs.forEach((x, i) => { x.style.display = r.sess[i] ? '' : 'none'; });
+      const hit = r.show;
       row.style.display = hit ? '' : 'none';
       if (hit) shown++;
     });
@@ -2054,6 +2126,7 @@ function applyProjFilter() {
   const h = document.querySelector('#colProj .sechint');
   if (h) h.textContent = q ? (total + ' / ' + projects.length + ' 个') : '拖动排序 · 右键分组';
 }
+// </proj-filter-apply>
 function applySessFilter() {
   const el = document.getElementById('sessFilter');
   const q = sessFilter = (el ? el.value : sessFilter).trim().toLowerCase();
@@ -2173,7 +2246,7 @@ function renderSessions(focusSid) {
     const u = sessUnread(s);
     const running = typeof termTabs !== 'undefined' && termTabs.some(t => t.sid === s.sid);
     return `<div class="sess${s.sid === curSid ? ' sel' : ''}${u ? ' unread' : ''}${running ? ' running' : ''}" id="sess-${s.sid}" onclick="clickSess('${s.sid}')"
-      data-q="${esc((s.title + ' ' + s.sid).toLowerCase())}">
+      data-q="${escAttr((s.title + ' ' + s.sid).toLowerCase())}">
       ${u ? '<span class="udot"></span>' : ''}
       <div class="stile" style="color:${c};background:${c}14;border:1px solid ${c}30">${ico('terminal')}</div>
       <div class="info">
@@ -2202,7 +2275,7 @@ function ccTag(s) {
   const tip = same ? '别的会话 @ 它就用这个名字' :
     ('别的会话现在喊它「' + c.name + '」,和这里的名字不一样' +
      (termTabs.some(t => t.sid === s.sid) ? ' —— 点一下改成跟这里一样' : ' —— 终端开着才能同步'));
-  return `<span class="cctag${same ? '' : ' diff'}" title="${esc(tip)}" onclick="ccNameClick('${s.sid}', event)">@${esc(c.name)}</span><span>·</span>`;
+  return `<span class="cctag${same ? '' : ' diff'}" title="${escAttr(tip)}" onclick="ccNameClick('${s.sid}', event)">@${esc(c.name)}</span><span>·</span>`;
 }
 function clickSess(sid) { clearUnreadSid(sid); setLastSess(curPath, sid); curSid = sid; markSessSel(); }
 // 只切 class,不重绘整列 —— 不丢滚动位置
@@ -2430,7 +2503,7 @@ function renameSess(sid) {
   const s = curSess.find(x => x.sid === sid);
   if (!card || !s) return;
   const tEl = card.querySelector('.t');
-  tEl.innerHTML = `<input class="srn" value="${esc(s.title)}" onclick="event.stopPropagation()" onkeydown="rnKey(event)" onblur="rnCommit(this,'${sid}')">`;
+  tEl.innerHTML = `<input class="srn" value="${escAttr(s.title)}" onclick="event.stopPropagation()" onkeydown="rnKey(event)" onblur="rnCommit(this,'${sid}')">`;
   const inp = tEl.querySelector('input'); inp.focus(); inp.select();
 }
 function rnKey(e) {
@@ -2440,9 +2513,11 @@ function rnKey(e) {
 async function rnCommit(inp, sid) {
   const cancel = inp.dataset.cancel === '1';
   const v = inp.value.trim();
+  const projAtStart = curPath;      // 等落盘的时候他可能已经切去别的项目了
   if (!cancel && v) {
     await hub.renameSession(sid, v);
     const s = curSess.find(x => x.sid === sid); if (s) s.title = v;
+    noteSessName(sid, v, projAtStart); renderProjects();
     const t = termTabs.find(x => x.sid === sid); if (t) { t.title = v; renderTermTabs(); }
     syncCcName(sid, v);        // 顺手把 Claude Code 那边的名字也改了,见下面
   }
@@ -3272,7 +3347,7 @@ function renderTermTabs() {
   const v = document.getElementById('tfval'); if (v) v.textContent = termFont;
   el.innerHTML = tabs.map(t => {
     const disp = t.title.length > 14 ? t.title.slice(0, 14) + '…' : t.title;
-    return `<div class="ttab${t.id === activeTerm ? ' on' : ''}" id="tt-${t.id}" title="${esc(t.title)}(双击改名 · 按住拖动排序)" data-tid="${t.id}"
+    return `<div class="ttab${t.id === activeTerm ? ' on' : ''}" id="tt-${t.id}" title="${escAttr(t.title)}(双击改名 · 按住拖动排序)" data-tid="${t.id}"
       onmousedown="dndDown(event, '${t.id}')" oncontextmenu="termMenu('${t.id}', event)"
       onclick="if(!justDragged)activateTerm('${t.id}')" ondblclick="renameTab('${t.id}', event)"><i class="tdot sdot ${termStatus(t)}" data-st="${termStatus(t)}" title="${termStatusText(t)}"></i><span class="tl">${esc(disp)}</span><span class="tx" onclick="event.stopPropagation();closeTerm('${t.id}', event)">${ico('x','sm')}</span></div>`;
   }).join('');
@@ -3449,6 +3524,7 @@ async function renameTermPrompt(id) {
   t.title = v[0];
   if (t.sid) {
     await hub.renameSession(t.sid, t.title);
+    noteSessName(t.sid, t.title, t.projPath); renderProjects();
     const s = curSess.find(x => x.sid === t.sid);
     if (s) { s.title = t.title; renderSessions(); }
   }
@@ -3500,7 +3576,7 @@ function renameTab(id, ev) {
   const t = termTabs.find(x => x.id === id);
   const el = document.querySelector('#tt-' + id + ' .tl');
   if (!t || !el) return;
-  el.innerHTML = `<input class="trn" value="${esc(t.title)}" onclick="event.stopPropagation()" ondblclick="event.stopPropagation()" onkeydown="rnKey(event)" onblur="tabRnCommit(this,'${id}')">`;
+  el.innerHTML = `<input class="trn" value="${escAttr(t.title)}" onclick="event.stopPropagation()" ondblclick="event.stopPropagation()" onkeydown="rnKey(event)" onblur="tabRnCommit(this,'${id}')">`;
   const inp = el.querySelector('input'); inp.focus(); inp.select();
 }
 async function tabRnCommit(inp, id) {
@@ -3511,6 +3587,7 @@ async function tabRnCommit(inp, id) {
     t.title = v;
     if (t.sid) {
       await hub.renameSession(t.sid, v);
+      noteSessName(t.sid, v, t.projPath); renderProjects();
       const s = curSess.find(x => x.sid === t.sid); if (s) { s.title = v; renderSessions(); }
     }
   }
@@ -3564,7 +3641,7 @@ async function renderRight() {
       `<div class="mem-item" style="color:var(--acc)" onclick="newMem()">${ico('plus')} 新建记忆…</div>`) +
     grp('doc', 'doc', 'book', '资料 · 规矩与文档', gdocs.length + d.docs.length,
       `<div class="subhd">全局 · 每个会话都加载</div>` +
-      gdocs.map(g => `<div class="mem-item two" onclick="editGlobalDoc('${escJs(g.rel)}')" title="~/.claude/${esc(g.rel)}（点击编辑）">
+      gdocs.map(g => `<div class="mem-item two" onclick="editGlobalDoc('${escJs(g.rel)}')" title="~/.claude/${escAttr(g.rel)}（点击编辑）">
         ${ico('book')}<div class="tw2"><div class="n1">${esc(g.rel)}</div><div class="n2">${esc(g.desc)}</div></div></div>`).join('') +
       (gdocs.some(g => g.rel === 'CLAUDE.md') ? '' : `<div class="mem-item" style="color:var(--acc)" onclick="editGlobalDoc('CLAUDE.md')">${ico('plus')} 新建全局 CLAUDE.md…</div>`) +
       `<div class="mem-item" style="color:var(--acc)" onclick="newGlobalRule()">${ico('plus')} 新建全局规则…</div>` +
@@ -3587,7 +3664,7 @@ async function renderRight() {
 }
 let HOMEC = '';   // ~/.claude 绝对路径,启动时从主进程取
 function cmdRow(scope, c) {
-  return `<div class="mem-item two" onclick="editCmd('${scope}','${escJs(c.name)}')" title="点击编辑 /${esc(c.name)}">
+  return `<div class="mem-item two" onclick="editCmd('${scope}','${escJs(c.name)}')" title="点击编辑 /${escAttr(c.name)}">
     ${ico('terminal')}
     <div class="tw2"><div class="n1">/${esc(c.name)}</div><div class="n2">${esc(c.desc || '(没写说明)')}</div></div>
     <span class="rn" style="opacity:.5" title="删除(移进 .trash)" onclick="event.stopPropagation();delCmd('${scope}','${escJs(c.name)}')">${ico('trash','sm')}</span>
@@ -3600,7 +3677,7 @@ function skillRow(sk, scope) {
   const act = scope === 'global'
     ? `hub.openDir(HOMEC + '\\skills\\' + '${escJs(nm)}')`
     : `viewSkill('${escJs(nm)}')`;
-  return `<div class="mem-item two" onclick="${act}" title="${scope === 'global' ? '打开技能文件夹' : '查看'} ${esc(nm)}">
+  return `<div class="mem-item two" onclick="${act}" title="${scope === 'global' ? '打开技能文件夹' : '查看'} ${escAttr(nm)}">
     ${ico('layers')}
     <div class="tw2"><div class="n1">/${esc(nm)}</div><div class="n2">${esc(ds || '(没写说明)')}</div></div>
     ${scope === 'global' ? '' : editBtnS(nm)}

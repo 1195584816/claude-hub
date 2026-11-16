@@ -188,7 +188,8 @@ async function startAgentControl() {
     agentServer = await agentApi.startAgentApiServer({
       host: cfg.host, port: cfg.port, token: cfg.token,
       service: agentService,
-      getProjects: () => data.getProjects(),
+      // named(改过名的会话)是给左栏筛选用的,不往接口外带 —— 接口字段保持原样
+      getProjects: () => data.getProjects().map(({ named, ...rest }) => rest),
       getSessions: projectPath => {
         const key = String(projectPath || '').replace(/[\\/]+$/, '').toLowerCase();
         const projects = data.getProjects();
