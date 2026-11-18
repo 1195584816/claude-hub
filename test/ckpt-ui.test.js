@@ -8,6 +8,20 @@ const path = require('node:path');
 const SRC = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 const between = (a, b) => { const i = SRC.indexOf(a), j = SRC.indexOf(b, i); assert.ok(i >= 0 && j > i, '找不到标记 ' + a); return SRC.slice(i, j); };
 
+// 2026-11-18 上游审查:回退要先列出会动的文件让人确认(不再是「点两下」);会话在总控里开着就不许点;撤销也有忙碌判断
+test('回退:先要清单(ckptPlan)再确认,确认时把看过的清单交给主进程;会话开着时按钮不可点', () => {
+  const rew = between('async function ckRewind()', 'async function ckRewindConfirm()');
+  assert.match(rew, /hub\.ckptPlan\(/);
+  assert.doesNotMatch(rew, /hub\.ckptRewind\(/);
+  assert.match(rew, /termTabs\.some\(t => t\.sid === ckSid\)/);
+  const conf = between('async function ckRewindConfirm()', 'async function ckUndoRewind()');
+  assert.match(conf, /hub\.ckptRewind\(pj\.sessSlug, ckSid, it\.id, ckPlan\.changes\.map\(c => c\.path\)\)/);
+  assert.match(between('function ckRenderMain()', 'function ckGit()'), /id="ckRewBtn" onclick="ckRewind\(\)" \$\{!open && !ckBusy/);
+  assert.match(between('function ckPlanBar(', 'async function ckRewind()'), /ckPlan\.changes/);
+  assert.match(between('async function ckUndoRewind()', '// <ck-prompt>'), /if \(!ckUndo \|\| ckBusy\) return;/);
+  assert.doesNotMatch(SRC, /ckRewArm/);
+});
+
 const ckPromptState = new Function(between('// <ck-prompt>', '// </ck-prompt>') + '\nreturn ckPromptState;')();
 test('看屏幕判断 Claude Code 能不能接输入', () => {
   // 真实画面片段(实测)

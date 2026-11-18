@@ -116,7 +116,7 @@ test('diff:这一轮的改动(没有 git 时给一句说明,不抛)', async () =
   assert.equal(await ck.diff(path.join(f.home, 'projects'), f.home, f.slug, SID, Q1, 'nope.txt', path.join(f.root, 'tmp')), '(找不到这个检查点或文件)');
 });
 
-test('回退前备份 → 撤销:改过的放回去,原来没有的删掉', async () => {
+test('回退前备份 → 撤销(没记成回退后的样子):改过的放回去,原来没有的**不删**', async () => {
   const f = fixture();
   const bk = path.join(f.root, 'rewind-backups');
   const bid = await ck.backupBeforeRewind(path.join(f.home, 'projects'), f.home, f.slug, SID, Q1, bk, 123);
@@ -128,8 +128,12 @@ test('回退前备份 → 撤销:改过的放回去,原来没有的删掉', asyn
   const r = await ck.undoRewind(bk, bid);
   assert.equal(fs.readFileSync(path.join(f.proj, 'a.txt'), 'utf8'), 'v3 第二轮\n');
   assert.equal(fs.readFileSync(path.join(f.proj, 'lib', 'c.js'), 'utf8'), 'c\n');
-  assert.equal(fs.existsSync(path.join(f.proj, 'b.txt')), false);
-  assert.deepEqual(r, { restored: 2, removed: 1, skipped: [] });   // 没记过回退后的指纹(老备份):照原来的做法全部放回
+  // 2026-11-18 上游审查:没记成回退后的指纹时,不知道 b.txt 是回退弄出来的还是人后来建的 —— 一律不删
+  assert.equal(fs.readFileSync(path.join(f.proj, 'b.txt'), 'utf8'), '回退时冒出来的');
+  assert.equal(r.restored, 2);
+  assert.equal(r.removed, 0);
+  assert.deepEqual(r.skipped, []);
+  assert.deepEqual(r.kept.map(p => path.basename(p)), ['b.txt']);
   await assert.rejects(ck.undoRewind(bk, '../x'));
 });
 
@@ -143,7 +147,12 @@ test('回退结果分类:只有「动手前就拒绝」才算文件没动;超时
   assert.equal(c({ err: fail, stderr: 'No file checkpoint found for this message.' }), 'untouched');
   assert.equal(c({ err: fail, stderr: 'Error: --rewind-files requires a user message UUID, but x is not a user message in this session' }), 'untouched');
   assert.equal(c({ err: fail, stderr: `No conversation found with session ID: ${SID}` }), 'untouched');
-  assert.equal(c({ err: fail, stderr: "'claude' is not recognized as an internal or external command" }), 'untouched');
+  // 2026-11-18 上游审查:只认官方「动手前拒绝」的原话。ENOENT / command not found 太宽 ——
+  // 回退做到一半报某个文件 ENOENT 也会被当成「没动」、删掉备份。找不到 claude 也按「拿不准」留备份
+  assert.equal(c({ err: fail, stderr: "'claude' is not recognized as an internal or external command" }), 'unsure');
+  assert.equal(c({ err: fail, stderr: 'Error: ENOENT: no such file or directory, open D:\\proj\\a.txt' }), 'unsure');
+  assert.equal(c({ err: fail, stderr: 'claude: command not found' }), 'unsure');
+  assert.equal(c({ err: { killed: true }, timedOut: true, killFailed: true }), 'unsure');
   assert.equal(c({ err: { killed: true }, timedOut: true, stdout: 'Files rewound' }), 'unsure');   // 超时:哪怕输出里有 rewound
   assert.equal(c({ err: fail, stderr: 'Failed to rewind: EBUSY: resource busy or locked' }), 'unsure');
   assert.equal(c({ err: fail, stderr: '' }), 'unsure');

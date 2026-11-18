@@ -3419,7 +3419,8 @@ async function agRun() {
 // 数据是 Claude Code 自己的文件检查点(/rewind 用的那份):每条提问前自动留一份被改文件的样子。
 // 这页只读它;「回退」走官方 claude --rewind-files,回退前主进程先把文件现在的样子存一份,能撤销(lib/checkpoints.js)。
 // 原来的「Git 改动」窗口也从这里进:检查点管 Claude 改了什么,Git 管还没提交的全部改动。
-let ckProj = null, ckSessList = [], ckSid = null, ckItems = [], ckSel = null, ckFile = null, ckMsg = '', ckUndo = null, ckRewArm = 0, ckBusy = false;
+// ckPlan:点了「回退」后主进程算出来的、会被动到的文件 { id, changes },确认框里列出来,确认了才真回退
+let ckProj = null, ckSessList = [], ckSid = null, ckItems = [], ckSel = null, ckFile = null, ckMsg = '', ckUndo = null, ckPlan = null, ckBusy = false;
 const ckPj = () => projects.find(p => p.path === ckProj);
 async function ckOpen() {
   if (!ckProj || !ckPj()) {
@@ -3447,7 +3448,7 @@ async function ckLoad() {
     else ckMsg = (r && r.msg) || '读不到这个会话的检查点';
   }
   if (!ckItems.find(i => i.id === ckSel)) ckSel = (ckItems.find(i => i.files.length) || ckItems[0] || {}).id || null;
-  ckFile = null; ckRewArm = 0;
+  ckFile = null; ckPlan = null;
   ckRenderList(); ckRenderMain();
 }
 function ckRenderSess() {
@@ -3478,7 +3479,7 @@ function ckRenderList() {
     </div>`;
   }).join('');
 }
-function ckPick(id) { ckSel = id; ckFile = null; ckRewArm = 0; ckRenderList(); ckRenderMain(); }
+function ckPick(id) { ckSel = id; ckFile = null; ckPlan = null; ckRenderList(); ckRenderMain(); }
 const ckRel = (abs) => { const pj = ckPj(); const b = pj ? pj.path.replace(/[\\/]+$/, '') + '\\' : ''; return b && abs.toLowerCase().startsWith(b.toLowerCase()) ? abs.slice(b.length) : abs; };
 function ckRenderMain() {
   const el = document.getElementById('ckMain');
@@ -3497,9 +3498,10 @@ function ckRenderMain() {
       <div style="font-size:15px;font-weight:600;line-height:1.5;word-break:break-all">${esc(it.prompt || '(空提问)')}</div>
       <div class="tmsg" style="margin-top:4px">${esc(fmtAgTime(it.at))} · ${esc(sess ? (sess.title || '') : '')}</div>
     </div>
-    ${open ? '<div class="ckbar warn">这个会话正开着。直接回退文件不会通知那边的 Claude,它还以为文件是改过的样子 —— 想连对话一起退,用「在会话里用 /rewind」。</div>' : ''}
+    ${open ? '<div class="ckbar warn">这个会话正在总控里开着,不能直接回退文件(那边的 Claude 不知道文件被退了,接着改会乱)。先关掉它的终端标签,或者用「在会话里用 /rewind」连对话一起退。</div>' : ''}
+    ${ckPlanBar(it)}
     <div class="ckacts">
-      <button class="btn sm" id="ckRewBtn" onclick="ckRewind()" ${it.files.length || ckItems.indexOf(it) > 0 ? '' : 'disabled'} title="用官方 claude --rewind-files:把这个会话改过的文件恢复成这条提问发出之前的样子">${ckBusy ? '回退中…' : '回退文件到这条提问之前'}</button>
+      <button class="btn sm" id="ckRewBtn" onclick="ckRewind()" ${!open && !ckBusy && (it.files.length || ckItems.indexOf(it) > 0) ? '' : 'disabled'} title="用官方 claude --rewind-files:把这个会话改过的文件恢复成这条提问发出之前的样子">${ckBusy ? '回退中…' : '回退文件到这条提问之前'}</button>
       <button class="btn ghost sm" onclick="ckRewindInSession()" title="在会话里输入 /rewind,用官方界面选择回退对话和/或代码">在会话里用 /rewind</button>
       <button class="btn ghost sm" onclick="ckFork()" title="claude --resume --fork-session:复制一份对话接着聊,原会话不动">分叉成新会话</button>
       ${gitBtn}
@@ -3529,34 +3531,56 @@ async function ckShowDiff(i) {
     return `<span class="${c}">${esc(l) || ' '}</span>`;
   }).join('');
 }
+// 确认框:列出这次回退会动的文件(主进程算的),确认了才做
+function ckPlanBar(it) {
+  if (!ckPlan || ckPlan.id !== it.id) return '';
+  const KIND = { '改': '改回原样', '删': '删掉(那时还没有)', '恢复': '重新建出来(现在被删了)' };
+  const shown = ckPlan.changes.slice(0, 30);
+  return `<div class="ckbar warn" style="display:block">
+    <div style="margin-bottom:6px">回退会动这 ${ckPlan.changes.length} 个文件(动之前会先备份,之后能撤销):</div>
+    <div style="max-height:180px;overflow:auto;font-family:var(--mono,monospace);font-size:12px;line-height:1.7">${shown.map(c => `<div><span class="gf-k ${c.kind === '恢复' ? '新' : c.kind}">${esc(c.kind)}</span> ${esc(ckRel(c.path))} <span class="tmsg">${esc(KIND[c.kind] || '')}</span></div>`).join('')}${ckPlan.changes.length > shown.length ? `<div class="tmsg">…还有 ${ckPlan.changes.length - shown.length} 个</div>` : ''}</div>
+    <div style="margin-top:8px;display:flex;gap:8px"><button class="btn sm" onclick="ckRewindConfirm()" ${ckBusy ? 'disabled' : ''}>${ckBusy ? '回退中…' : '确认回退'}</button><button class="btn ghost sm" onclick="ckPlan=null;ckRenderMain()" ${ckBusy ? 'disabled' : ''}>取消</button></div>
+  </div>`;
+}
 async function ckRewind() {
   const pj = ckPj(), it = ckItems.find(x => x.id === ckSel);
   if (!pj || !it || ckBusy) return;
-  const btn = document.getElementById('ckRewBtn');
-  // 点两下才做:第一下变成「再点一次确认」,3 秒内没点就复原
-  if (Date.now() - ckRewArm > 3000) {
-    ckRewArm = Date.now();
-    if (btn) btn.textContent = '再点一次确认回退(之后能撤销)';
-    setTimeout(() => { const b = document.getElementById('ckRewBtn'); if (b && !ckBusy && Date.now() - ckRewArm >= 3000) b.textContent = '回退文件到这条提问之前'; }, 3100);
-    return;
-  }
-  ckRewArm = 0; ckBusy = true; ckRenderMain();
+  if (termTabs.some(t => t.sid === ckSid)) { hubToast('这个会话正在总控里开着,先关掉它的终端标签再回退'); return; }
   let r = null;
-  try { r = await hub.ckptRewind(pj.sessSlug, ckSid, it.id); } catch (e) { r = { ok: false, msg: String(e) }; }
+  try { r = await hub.ckptPlan(pj.sessSlug, ckSid, it.id); } catch (e) { r = { ok: false, msg: String(e) }; }
+  if (ckSel !== it.id) return;   // 等的时候换了一条
+  if (!r || !r.ok) { hubToast('不能回退:' + ((r && r.msg) || '未知原因')); return; }
+  if (r.running) { hubToast(r.running); return; }
+  if (!r.changes.length) { hubToast('文件已经是这条提问之前的样子,不用回退'); return; }
+  ckPlan = { id: it.id, changes: r.changes };
+  ckRenderMain();
+}
+async function ckRewindConfirm() {
+  const pj = ckPj(), it = ckItems.find(x => x.id === ckSel);
+  if (!pj || !it || ckBusy || !ckPlan || ckPlan.id !== it.id) return;
+  ckBusy = true; ckRenderMain();
+  let r = null;
+  try { r = await hub.ckptRewind(pj.sessSlug, ckSid, it.id, ckPlan.changes.map(c => c.path)); } catch (e) { r = { ok: false, msg: String(e) }; }
   ckBusy = false;
-  if (r && r.ok) { ckUndo = { bid: r.bid, dir: r.backupDir, prompt: it.prompt }; hubToast('文件已回退'); }
-  else if (r && r.unsure && r.bid) { ckUndo = { bid: r.bid, dir: r.backupDir, prompt: it.prompt, unsure: true, msg: r.msg }; hubToast('没能确认回退结果,备份已保留'); }
+  if (r && r.replan) { hubToast(r.msg); ckPlan = null; ckRenderMain(); await ckRewind(); return; }
+  const note = r && r.bid && r.recorded === false ? '(没能记下回退后的样子:撤销时只放回备份,不会删任何文件)' : '';
+  if (r && r.ok) { ckUndo = { bid: r.bid, dir: r.backupDir, prompt: it.prompt }; hubToast('文件已回退' + note); }
+  else if (r && r.unsure && r.bid) { ckUndo = { bid: r.bid, dir: r.backupDir, prompt: it.prompt, unsure: true, msg: r.msg }; hubToast('没能确认回退结果,备份已保留' + note); }
   else hubToast('没能回退:' + ((r && r.msg) || '未知原因'));
   await ckLoad();
 }
 async function ckUndoRewind() {
-  if (!ckUndo) return;
+  if (!ckUndo || ckBusy) return;
+  ckBusy = true;
   let r = null;
   try { r = await hub.ckptUndo(ckUndo.bid); } catch (e) { r = { ok: false, msg: String(e) }; }
+  ckBusy = false;
   if (r && r.ok) {
-    const sk = r.skipped || [];
+    const sk = r.skipped || [], kp = r.kept || [];
+    const names = (l) => l.slice(0, 3).map(p => p.split(/[\\/]/).pop()).join('、') + (l.length > 3 ? ' 等' : '');
     hubToast(`已撤销:放回 ${r.restored} 个文件` + (r.removed ? `,删掉 ${r.removed} 个回退时出现的文件` : '')
-      + (sk.length ? `。有 ${sk.length} 个文件回退后又被改过,没动它们:${sk.slice(0, 3).map(p => p.split(/[\\/]/).pop()).join('、')}${sk.length > 3 ? ' 等' : ''}(原来的内容还在 ${ckUndo.dir})` : ''));
+      + (sk.length ? `。有 ${sk.length} 个文件回退后又被改过或读不了,没动它们:${names(sk)}(原来的内容还在 ${ckUndo.dir})` : '')
+      + (kp.length ? `。有 ${kp.length} 个文件没删(拿不准是不是回退弄出来的):${names(kp)}` : ''));
     ckUndo = null;
   }
   else hubToast('撤销失败:' + ((r && r.msg) || '未知原因') + '。备份还在 ' + ckUndo.dir);

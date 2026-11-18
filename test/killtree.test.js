@@ -48,6 +48,33 @@ test('超时:经 powershell.exe 起的孙子进程也被杀掉', { skip: process
   assert.equal(alive(pid), false, '超时后孙子进程还活着');
 });
 
+// 2026-11-18 上游审查:taskkill 没杀掉时 exec 的回调可能永远不来,Promise 就永远不返回。
+// 换一个假的 child_process 重新加载 killtree:子进程永远不结束,taskkill 报错 —— 到点也要返回 killFailed。
+test('超时后杀不掉:兜底时间到了也返回(killFailed),不会永远挂着', async () => {
+  const cp = require('node:child_process');
+  const { EventEmitter } = require('node:events');
+  const orig = { exec: cp.exec, execFile: cp.execFile };
+  const fake = () => { const c = new EventEmitter(); c.pid = 4242; c.stdin = { end() {} }; c.stdout = new EventEmitter(); c.stderr = new EventEmitter(); c.kill = () => false; setTimeout(() => c.stdout.emit('data', '半截输出'), 5); return c; };
+  let taskkill = 0;
+  cp.exec = () => fake();
+  cp.execFile = (file, args, o, cb) => { if (/taskkill/i.test(file)) { taskkill++; setTimeout(() => cb(new Error('拒绝访问')), 5); return fake(); } return fake(); };
+  const key = require.resolve('../lib/killtree');
+  delete require.cache[key];
+  try {
+    const kt = require('../lib/killtree');
+    const t0 = Date.now();
+    const r = await kt.runKillable('whatever', null, {}, 50, 200);
+    assert.equal(r.timedOut, true);
+    assert.equal(r.killFailed, true);
+    assert.equal(r.stdout, '半截输出');
+    assert.ok(Date.now() - t0 < 2000);
+    if (process.platform === 'win32') assert.equal(taskkill, 1);
+  } finally {
+    cp.exec = orig.exec; cp.execFile = orig.execFile;
+    delete require.cache[key];
+  }
+});
+
 test('不超时:正常拿到输出和退出码,stdin 已关(不会干等)', async () => {
   const r = await runKillable(process.execPath, ['-e', 'process.stdin.on("end",()=>{console.log("got-eof");process.exit(3)});process.stdin.resume()'], {}, 10000);
   assert.equal(r.timedOut, false);

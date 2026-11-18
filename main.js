@@ -275,6 +275,8 @@ if (process.argv.includes('--pty-test')) {
     createWindow();
     writePresence();
     auth.restore().then(pushAuth, () => {});   // 有登录令牌就悄悄续期;不等它,连不上也不影响启动
+    // 回退备份超过 14 天的清掉(最新 10 份不管多旧都留)。异步、不等它
+    ckpt.cleanBackups(P.REWIND_BACKUPS).catch(() => {});
     // 启动仅限本机的小九/自动化控制 API；失败不影响桌面总控正常使用。
     startAgentControl().catch(error => { agentState.error = String(error && error.message ? error.message : error); });
     // 盯完成流:有新完成 -> 推给界面 + 任务栏闪烁 + 刷新用量
@@ -411,9 +413,36 @@ ipcMain.handle('ckpt:diff', async (e, slug, sid, id, key) => {
   try { return await ckpt.diff(P.CLAUDE_PROJECTS, P.CLAUDE_HOME, slug, sid, id, String(key || ''), P.CKPT_TMP); }
   catch (err) { return '(没能生成对比:' + String(err && err.message || err) + ')'; }
 });
-ipcMain.handle('ckpt:rewind', async (e, slug, sid, id) => {
+// 回退 / 撤销会写、会删用户项目里的文件,同一个会话同一时间只许做一件(按会话加锁)
+const ckptBusy = new Set();
+const ckptOpenInHub = (sid) => [...termMeta.values()].some(m => m && m.sid === sid);
+// 会话还在跑就不许动它的文件:总控里开着,或者会话记录最近一分钟有写入(外部终端 / 手机上在跑)
+async function ckptRunningMsg(slug, sid, since = 0) {
+  if (ckptOpenInHub(sid)) return '这个会话正在总控里开着。先关掉它的终端标签,或者在会话里用 /rewind。';
+  if (await ckpt.sessionBusy(P.CLAUDE_PROJECTS, P.CLAUDE_HOME, slug, sid, Date.now(), 60000, since)) return '这个会话一分钟内还有写入,可能正在别处运行。等它停下来再回退。';
+  return '';
+}
+// 回退前先看会动哪些文件,给确认框列出来;拿不准就在这一步拒绝
+ipcMain.handle('ckpt:plan', async (e, slug, sid, id) => {
+  try {
+    const running = await ckptRunningMsg(slug, sid);
+    const plan = await ckpt.planRewind(P.CLAUDE_PROJECTS, P.CLAUDE_HOME, slug, sid, id);
+    return Object.assign(plan, { running });
+  } catch (err) { return { ok: false, msg: String(err && err.message || err) }; }
+});
+// confirmed:用户在确认框里看到的文件清单。这时候重新算一遍,多出没确认过的文件就不做,让人重新确认
+ipcMain.handle('ckpt:rewind', async (e, slug, sid, id, confirmed) => {
+  if (ckptBusy.has(sid)) return { ok: false, msg: '这个会话正在回退或撤销,等它做完' };
+  ckptBusy.add(sid);
   let bid = '';
   try {
+    const running = await ckptRunningMsg(slug, sid);
+    if (running) return { ok: false, msg: running };
+    const plan = await ckpt.planRewind(P.CLAUDE_PROJECTS, P.CLAUDE_HOME, slug, sid, id);
+    if (!plan.ok) return { ok: false, msg: plan.msg };
+    const ok = new Set((Array.isArray(confirmed) ? confirmed : []).map(p => String(p).toLowerCase()));
+    if (plan.changes.some(c => !ok.has(c.path.toLowerCase()))) return { ok: false, replan: true, msg: '确认之后文件又变了,请重新确认要回退的文件' };
+    if (!plan.changes.length) return { ok: false, msg: '文件已经是那条提问之前的样子,不用回退' };
     const cwd = await ckpt.sessionCwd(P.CLAUDE_PROJECTS, P.CLAUDE_HOME, slug, sid);
     bid = await ckpt.backupBeforeRewind(P.CLAUDE_PROJECTS, P.CLAUDE_HOME, slug, sid, id, P.REWIND_BACKUPS);
     const { env } = await termEnv();
@@ -425,15 +454,33 @@ ipcMain.handle('ckpt:rewind', async (e, slug, sid, id) => {
       try { await fs.promises.rm(backupDir, { recursive: true, force: true }); } catch {}
       return { ok: false, msg: r.msg || '回退没有成功' };
     }
-    // 记下回退后的样子:撤销时认得出「回退之后又被改过」的文件,不去覆盖/删除它们。记不成就按老办法撤销(拿不准就放行)
-    try { await ckpt.recordAfterRewind(P.REWIND_BACKUPS, bid); } catch {}
-    if (r.state === 'unsure') return { ok: false, unsure: true, bid, backupDir, msg: r.msg || '没能确认回退结果' };
-    return { ok: true, bid, msg: r.msg, backupDir };
+    // 记下回退后的样子:撤销时认得出「回退之后又被改过」的文件,不去覆盖/删除它们。
+    // 记不成的话撤销时一律不删文件(只放回备份里有的),界面会说明
+    let recorded = true;
+    try {
+      const jsonlMtime = await ckpt.sessionMtime(P.CLAUDE_PROJECTS, P.CLAUDE_HOME, slug, sid);
+      await ckpt.recordAfterRewind(P.REWIND_BACKUPS, bid, { jsonlMtime });
+    } catch { recorded = false; }
+    if (r.state === 'unsure') return { ok: false, unsure: true, bid, backupDir, recorded, msg: r.msg || '没能确认回退结果' };
+    return { ok: true, bid, msg: r.msg, backupDir, recorded };
   } catch (err) { return { ok: false, msg: String(err && err.message || err) }; }
+  finally { ckptBusy.delete(sid); }
 });
 ipcMain.handle('ckpt:undo', async (e, bid) => {
-  try { return Object.assign({ ok: true }, await ckpt.undoRewind(P.REWIND_BACKUPS, bid)); }
-  catch (err) { return { ok: false, msg: String(err && err.message || err) }; }
+  let sid = '';
+  try {
+    const m = await ckpt.readManifest(P.REWIND_BACKUPS, bid);
+    sid = String(m.sid || '');
+    if (!ckpt.UUID.test(sid)) return { ok: false, msg: '备份清单不对' };
+    if (ckptBusy.has(sid)) { sid = ''; return { ok: false, msg: '这个会话正在回退或撤销,等它做完' }; }
+    ckptBusy.add(sid);
+    // 回退本身会写一笔会话记录,只有比回退后更新的写入才算「又在跑了」;老备份没有 slug 就只看总控里开没开着
+    const running = m.slug ? await ckptRunningMsg(m.slug, sid, Number(m.jsonlMtime) || 0).catch(() => '')
+      : (ckptOpenInHub(sid) ? '这个会话正在总控里开着,先关掉它的终端标签再撤销。' : '');
+    if (running) return { ok: false, msg: running };
+    return Object.assign({ ok: true }, await ckpt.undoRewind(P.REWIND_BACKUPS, bid));
+  } catch (err) { return { ok: false, msg: String(err && err.message || err) }; }
+  finally { if (sid) ckptBusy.delete(sid); }
 });
 // 运行:按 id 从磁盘取那一条(不信界面传来的内容),写参数文件,返回终端要执行的命令,顺手记一次运行
 ipcMain.handle('agents:launch', async (e, id, projPath) => {
