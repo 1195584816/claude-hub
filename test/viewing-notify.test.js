@@ -30,7 +30,7 @@ function loadFeed(state) {
 function loadViewing(env) {
   const document = { getElementById: () => ({ classList: { contains: () => !!env.termOn } }) };
   const body = [pickLine('leaf'), between('// <viewing-rec>', '// </viewing-rec>'), 'return viewingRec;'].join('\n');
-  return new Function('document', '__e', 'const termTabs = __e.termTabs; let activeTerm = __e.activeTerm; let restoring = !!__e.restoring;\n' + body)(document, env);
+  return new Function('document', '__e', "const termTabs = __e.termTabs; let activeTerm = __e.activeTerm; let restoring = !!__e.restoring; let curPage = __e.curPage || 'sess';\n" + body)(document, env);
 }
 
 const P = 'F:\\proj\\alpha', Q = 'F:\\proj\\beta';
@@ -90,6 +90,18 @@ test('不算在里面:只开着面板没进终端区 / 正在恢复上次的标�
   assert.equal(loadViewing({ termTabs: [], activeTerm: null, termOn: true })(REC('s1', 'x', P)), false);
   assert.equal(loadViewing({ termTabs: tabs(), activeTerm: 't1', termOn: true })(null), false);
   assert.equal(loadViewing({ termTabs: tabs(), activeTerm: 't1', termOn: true })(REC('', 'x', P)), false, '记录没有会话号,对不上');
+});
+
+// 2026-11-18 上游审查:加了左侧功能栏后,停在 Agents / 检查点 / MCP 页时终端被整页盖住,
+// 但终端区的 on 和当前标签都还在,viewingRec 照样说「人在里面」,这个会话的完成提醒就被吞了。
+test('停在功能页(终端被盖住):不算在里面;回到会话页才算', () => {
+  for (const pg of ['agents', 'ckpt', 'mcp']) {
+    assert.equal(loadViewing({ termTabs: tabs(), activeTerm: 't1', termOn: true, curPage: pg })(REC('s1', 'x', P)), false, pg);
+  }
+  assert.equal(loadViewing({ termTabs: tabs(), activeTerm: 't1', termOn: true, curPage: 'sess' })(REC('s1', 'x', P)), true);
+  // 真源码里 curPage 就是 setPage 改的那个变量
+  assert.match(between('// <viewing-rec>', '// </viewing-rec>'), /if \(curPage !== 'sess'\) return false;/);
+  assert.match(SRC, /^let curPage = 'sess';/m);
 });
 
 test('新开的会话还没拿到会话号:一律不算在里面(按目录猜会把同项目别的会话的完成吞掉)', () => {

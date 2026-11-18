@@ -404,7 +404,7 @@ ipcMain.handle('agents:launch', async (e, id, projPath) => {
     const cur = await agents.load(P.AGENTS);
     const a = cur.list.find(x => x.id === id);
     if (!a) return { ok: false, msg: cur.broken ? cur.msg : '没有这个 Agent' };
-    const cmd = agents.writeLaunch(P.AGENT_RUNS, a);
+    const cmd = await agents.writeLaunch(P.AGENT_RUNS, a);
     try { await agents.recordRun(P.AGENTS, id, projPath); } catch {}
     return { ok: true, cmd };
   } catch (err) { return { ok: false, msg: String(err) }; }

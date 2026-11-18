@@ -44,6 +44,32 @@ test('normalize:不认识的工具、怪模型名、坏 id 都被挡掉', () => 
   assert.equal(ag.normalize({ model: 'claude-opus-5-5[1m]' }).model, 'claude-opus-5-5[1m]');
 });
 
+// 2026-11-18 上游审查:模型名跟在 --model 后面,以 - 开头的会被 claude 当成另一个参数
+// (比如填 --dangerously-skip-permissions)。保存时直接拒绝、说出来;读到这种旧数据也不传。
+test('模型名以 - 开头:保存时拒绝,读到也不传 --model', async () => {
+  const d = tmp(), f = path.join(d, 'agents.json');
+  for (const m of ['--dangerously-skip-permissions', '-p', '  -x']) {
+    const r = await ag.save(f, [{ id: 'a1', name: 'x', model: m }]);
+    assert.equal(r.ok, false, m);
+    assert.match(r.msg, /不能以 - 开头/);
+  }
+  assert.equal(fs.existsSync(f), false, '拒绝时什么都不写');
+  assert.equal(ag.normalize({ model: '--dangerously-skip-permissions' }).model, '');
+  assert.equal(ag.normalize({ model: '"-p' }).model, '', '去掉怪字符后变成 - 开头的也不要');
+  assert.deepEqual(ag.buildArgs({ model: '-p' }), []);
+  assert.equal(ag.normalize({ model: 'claude-opus-5-5' }).model, 'claude-opus-5-5', '中间的 - 照常');
+  assert.equal((await ag.save(f, [{ id: 'a1', name: 'x', model: 'opus' }])).ok, true);
+});
+
+// 2026-11-18 上游审查:git diff / log / show 带 --output=<文件> 能写文件,「只读 git」名不副实
+test('gitread 在界面上不叫「只读」,并写明 --output= 能写文件', () => {
+  const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+  const line = html.split('\n').find(l => l.includes("['gitread',"));
+  assert.ok(line, '找不到 gitread 那一项');
+  assert.doesNotMatch(line, /只读 git/);
+  assert.match(line, /--output=/);
+});
+
 test('escapeForPs51:双引号、引号前的反斜杠、包引号时结尾的反斜杠', () => {
   assert.equal(ag.escapeForPs51('a"b'), 'a\\"b');
   assert.equal(ag.escapeForPs51('a\\"b'), 'a\\\\\\"b');
@@ -93,7 +119,7 @@ test('psQuote:单引号翻倍', () => {
 
 // 最要紧的一条:真的经过 powershell.exe,另一头收到的参数和原文一字不差。
 // 用一个打印 argv 的 node 小脚本顶替 claude(命令里把 claude 换成 node <脚本>)。
-test('真跑 PowerShell:引号、换行、反斜杠、中文都原样送到', { skip: process.platform !== 'win32' }, () => {
+test('真跑 PowerShell:引号、换行、反斜杠、中文都原样送到', { skip: process.platform !== 'win32' }, async () => {
   const d = tmp();
   const echo = path.join(d, 'echo.js');
   const out = path.join(d, 'out.json');
@@ -104,7 +130,7 @@ test('真跑 PowerShell:引号、换行、反斜杠、中文都原样送到', { 
     model: 'opus',
     tools: ['read', 'gitread']
   };
-  const cmd = ag.writeLaunch(path.join(d, 'runs'), agent);
+  const cmd = await ag.writeLaunch(path.join(d, 'runs'), agent);
   assert.match(cmd, / claude @a$/);
   const ps = spawnSync('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command',
     cmd.replace(/ claude @a$/, ' node ' + ag.psQuote(echo) + ' @a')], { encoding: 'utf8', timeout: 60000 });
@@ -121,13 +147,13 @@ test('真跑 PowerShell:引号、换行、反斜杠、中文都原样送到', { 
 
 // 2026-11-17 做 MCP 页时发现:PowerShell 5.1 只在「引号外面有空白」时才给参数包引号,而且把 \" 也当引号数。
 // 提示词 "只读 审查"(空白全在引号里)不会被包,claude 收到的是被空格劈开的两段。所以提示词改走文件。
-test('真跑 PowerShell:空白全在引号里的提示词也完整送到', { skip: process.platform !== 'win32' }, () => {
+test('真跑 PowerShell:空白全在引号里的提示词也完整送到', { skip: process.platform !== 'win32' }, async () => {
   const d = tmp();
   const echo = path.join(d, 'echo.js');
   const out = path.join(d, 'out.json');
   fs.writeFileSync(echo, `require('fs').writeFileSync(${JSON.stringify(out)}, JSON.stringify(process.argv.slice(2)), 'utf8');`);
   for (const prompt of ['"只读 审查"', 'x"a b"', '"a b" "c d"']) {
-    const cmd = ag.writeLaunch(path.join(d, 'runs'), { id: 'q', prompt, model: 'opus' });
+    const cmd = await ag.writeLaunch(path.join(d, 'runs'), { id: 'q', prompt, model: 'opus' });
     const ps = spawnSync('powershell.exe', ['-NoProfile', '-Command', cmd.replace(/ claude @a$/, ' node ' + ag.psQuote(echo) + ' @a')], { encoding: 'utf8', timeout: 60000 });
     assert.equal(ps.status, 0, ps.stderr);
     const got = JSON.parse(fs.readFileSync(out, 'utf8'));
@@ -137,12 +163,12 @@ test('真跑 PowerShell:空白全在引号里的提示词也完整送到', { ski
   }
 });
 
-test('真跑 PowerShell:什么都没填时 claude 不带参数', { skip: process.platform !== 'win32' }, () => {
+test('真跑 PowerShell:什么都没填时 claude 不带参数', { skip: process.platform !== 'win32' }, async () => {
   const d = tmp();
   const echo = path.join(d, 'echo.js');
   const out = path.join(d, 'out.json');
   fs.writeFileSync(echo, `require('fs').writeFileSync(${JSON.stringify(out)}, JSON.stringify(process.argv.slice(2)), 'utf8');`);
-  const cmd = ag.writeLaunch(path.join(d, 'runs'), { id: 'empty' });
+  const cmd = await ag.writeLaunch(path.join(d, 'runs'), { id: 'empty' });
   const ps = spawnSync('powershell.exe', ['-NoProfile', '-Command', cmd.replace(/ claude @a$/, ' node ' + ag.psQuote(echo) + ' @a')], { encoding: 'utf8', timeout: 60000 });
   assert.equal(ps.status, 0, ps.stderr);
   assert.deepEqual(JSON.parse(fs.readFileSync(out, 'utf8')), []);

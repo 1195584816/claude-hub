@@ -3186,7 +3186,7 @@ function setPage(pg) {
 // 运行 = 主进程按 id 从磁盘取这一条、写好参数文件,这边拿回一行命令,在选中的项目里开一个内嵌终端标签。
 const AG_TOOLS = [
   ['read', '读文件 / 搜索', 'Read · Grep · Glob'],
-  ['gitread', '只读 git', 'git diff / log / status / show'],
+  ['gitread', 'git 查看命令', 'git diff / log / status / show(不完全只读:带 --output= 能写文件)'],
   ['write', '改文件', 'Edit · Write'],
   ['bash', '任意命令', 'Bash(全部命令)']
 ];
@@ -4283,10 +4283,11 @@ function bindRail() {
 }
 
 // <viewing-rec>
-// 这条完成记录对应的会话,用户此刻是不是就在里面:终端区开着,而且当前标签就是它。
-// 只开着面板(没在终端区)、正在恢复上次的标签、当前标签是别的会话 —— 都不算。
+// 这条完成记录对应的会话,用户此刻是不是就在里面:在会话页、终端区开着,而且当前标签就是它。
+// 只开着面板(没在终端区)、正在恢复上次的标签、当前标签是别的会话、停在 Agents 等功能页(终端被盖住)—— 都不算。
 function viewingRec(r) {
   if (!r || restoring) return false;
+  if (curPage !== 'sess') return false;
   if (!document.getElementById('termWrap').classList.contains('on')) return false;
   const t = termTabs.find(x => x.id === activeTerm);
   if (!t) return false;
