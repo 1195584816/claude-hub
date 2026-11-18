@@ -5,8 +5,13 @@
 //      → 只把 ENOENT 当不存在;备份时任一文件读不了就放弃这次回退。
 //   2. 记「回退后的样子」失败被吞掉后,撤销照样删 existed:false 的文件。→ 没记成就一律不删。
 //   4. 备份清单靠解析 jsonl 推,推不准时照常回退,事后却恢复不了。→ 推不准就拒绝;确认框列出会动的文件。
-//   5. 会话还在跑时也能回退;回退 / 撤销没有互斥。→ 总控里开着或一分钟内有写入就拒绝;按会话加锁。
+//   5. 会话还在跑时也能回退;回退 / 撤销没有互斥。→ 总控里开着或最近有写入(现在是 5 分钟)就拒绝;按会话加锁。
 //   7. 回退备份只增不删;git diff 会跑用户配置的外部对比程序。→ 清理旧备份;加 --no-ext-diff --no-textconv。
+// 同日第二轮审查(#4):
+//   · 撤销放回文件那段没有 try/catch:一个文件写不进去整个撤销抛错,界面说「撤销失败」,前面的文件其实已被覆盖。
+//     → 每个文件单独 try,写不进去计入 skipped,照常返回。
+//   · 没记成回退后的样子时,撤销直接覆盖,回退后用户自己改的内容丢了。→ 覆盖前先另存到 pre-undo-<时间>/。
+//   · 「在跑」窗口 1 分钟太短 → 5 分钟;openInHubMsg 比 slug 区分大小写 → 不分。
 // 「读不了的文件」用目录冒充:readFile 一个目录报 EISDIR,和被锁一样是「不是不存在、但读不了」。
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -19,11 +24,14 @@ const SID = 'b4f1e144-9dbd-4b6f-9002-6a79401686f9';
 const Q1 = '6d9dced9-fc80-4427-9508-e7d776944754';
 const Q2 = '7e0e0000-0000-4000-8000-000000000002';
 const NOPE = '00000000-0000-4000-8000-00000000dead';
+const tmpRoots = [];
+test.after(() => { for (const d of tmpRoots) try { fs.rmSync(d, { recursive: true, force: true }); } catch {} });
 const iso = (minAgo) => new Date(Date.now() - minAgo * 60e3).toISOString();
 
 // 两轮:Q1 改 a.txt、新建 b.txt;Q2 新建 c.txt。磁盘上现在 a = v2、b、c 都在
 function fixture(extraLines = []) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'hub-ckpt-safe-'));
+  tmpRoots.push(root);
   const proj = path.join(root, 'proj'), home = path.join(root, 'claude'), slug = 'C--proj';
   fs.mkdirSync(proj, { recursive: true });
   fs.mkdirSync(path.join(home, 'projects', slug), { recursive: true });
@@ -153,9 +161,13 @@ test('记成了:撤销时现在读不了的文件不碰(算 skipped),不会被�
 });
 
 // ---------- 5. 会话还在跑就不许动 ----------
-test('sessionBusy:一分钟内有写入算在跑;since 之前的写入(回退自己写的)不算', async () => {
+test('sessionBusy:5 分钟内有写入算在跑;since 之前的写入(回退自己写的)不算', async () => {
   const f = fixture();
-  assert.equal(await ck.sessionBusy(f.P, f.home, f.slug, SID), false);
+  assert.equal(ck.BUSY_MS, 5 * 60e3);
+  assert.equal(await ck.sessionBusy(f.P, f.home, f.slug, SID), false);   // 十分钟前写的
+  const t3 = (Date.now() - 3 * 60e3) / 1000;
+  fs.utimesSync(f.jsonl, t3, t3);
+  assert.equal(await ck.sessionBusy(f.P, f.home, f.slug, SID), true, '外部终端里跑了三分钟命令没写记录,也算在跑');
   fs.appendFileSync(f.jsonl, '\n');
   assert.equal(await ck.sessionBusy(f.P, f.home, f.slug, SID), true);
   const mt = await ck.sessionMtime(f.P, f.home, f.slug, SID);
@@ -173,6 +185,7 @@ test('main.js 接线:回退 / 撤销按会话加锁、会话在跑就拒绝、�
   assert.match(rew, /plan\.changes\.some\(c => !ok\.has\(c\.path\.toLowerCase\(\)\)\)/);
   assert.match(rew, /recordAfterRewind\(P\.REWIND_BACKUPS, bid, \{ jsonlMtime \}\)/);
   assert.match(undo, /ckptBusy\.has\(sid\)/);
+  assert.match(MAIN, /ckpt\.sessionBusy\(.*ckpt\.BUSY_MS, since\)/);
   assert.match(undo, /ckptRunningMsg\(m\.slug, sid, Number\(m\.jsonlMtime\) \|\| 0\)/);
   assert.match(MAIN, /ckpt\.openInHubMsg\(\[\.\.\.termMeta\.values\(\)\], slug, sid, data\.slugOf\)/);
   assert.match(MAIN, /ckpt\.cleanBackups\(P\.REWIND_BACKUPS\)\.catch\(\(\) => \{\}\)/);
@@ -181,6 +194,7 @@ test('main.js 接线:回退 / 撤销按会话加锁、会话在跑就拒绝、�
 // ---------- 7. 旧备份清理、git diff 不跑外部程序 ----------
 test('cleanBackups:超过 14 天的删,最新 10 份不管多旧都留;不是我们建的目录不碰', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'hub-ckpt-clean-'));
+  tmpRoots.push(root);
   const now = Date.now(), DAY = 86400e3;
   const ids = [];
   for (let i = 0; i < 15; i++) ids.push(String(now - (i < 3 ? i : 20 + i) * DAY));   // 3 份新的、12 份 20 天以上的
@@ -224,4 +238,59 @@ test('main.js:回退 / 撤销都走 openInHubMsg;界面认领到会话号会告�
   assert.doesNotMatch(MAIN, /ckptOpenInHub/);
   assert.match(MAIN, /ipcMain\.on\('term:bindSid'/);
   assert.match(fs.readFileSync(path.join(__dirname, '..', 'preload.js'), 'utf8'), /termBindSid: \(id, sid\) => ipcRenderer\.send\('term:bindSid', id, sid\)/);
+});
+
+// ---------- 第二轮审查:撤销逐个文件、没记成先另存、大小写 ----------
+// 换掉 fs.promises.writeFile:路径命中 bad 时报 EBUSY(冒充被编辑器独占 / 杀毒在扫)
+async function withWriteFail(bad, fn) {
+  const orig = fs.promises.writeFile;
+  fs.promises.writeFile = function (p, ...rest) {
+    if (bad(String(p))) return Promise.reject(Object.assign(new Error('EBUSY: resource busy or locked'), { code: 'EBUSY' }));
+    return orig.call(this, p, ...rest);
+  };
+  try { return await fn(); } finally { fs.promises.writeFile = orig; }
+}
+
+test('撤销时有文件写不进去:不抛错,那个算 skipped,别的照样放回', async () => {
+  const f = fixture();
+  const bid = await ck.backupBeforeRewind(f.P, f.home, f.slug, SID, Q1, f.bk, 555);   // a = v2、b、c 都在
+  // 「回退」到 Q1 之前:a 回到 v1,b、c 被删
+  fs.writeFileSync(path.join(f.proj, 'a.txt'), 'v1\n');
+  fs.unlinkSync(path.join(f.proj, 'b.txt')); fs.unlinkSync(path.join(f.proj, 'c.txt'));
+  await ck.recordAfterRewind(f.bk, bid, { jsonlMtime: 1 });
+  const r = await withWriteFail(p => path.basename(p) === 'b.txt', () => ck.undoRewind(f.bk, bid));
+  assert.deepEqual(r.skipped.map(p => path.basename(p)), ['b.txt']);
+  assert.equal(r.restored, 2);
+  assert.equal(fs.readFileSync(path.join(f.proj, 'a.txt'), 'utf8'), 'v2\n');
+  assert.equal(fs.readFileSync(path.join(f.proj, 'c.txt'), 'utf8'), 'c\n');
+  assert.equal(fs.existsSync(path.join(f.proj, 'b.txt')), false);
+});
+
+test('没记成回退后的样子:覆盖前先把现在的内容另存;和备份一样的不另存', async () => {
+  const f = fixture();
+  const bid = await ck.backupBeforeRewind(f.P, f.home, f.slug, SID, Q1, f.bk, 666);
+  fs.writeFileSync(path.join(f.proj, 'a.txt'), '回退之后我自己改的\n');    // 回退后(没记成 recorded)用户改了 a;b、c 没变
+  const r = await ck.undoRewind(f.bk, bid, 777);
+  assert.equal(fs.readFileSync(path.join(f.proj, 'a.txt'), 'utf8'), 'v2\n');
+  assert.deepEqual(r.saved.map(x => path.basename(x.path)), ['a.txt']);
+  assert.equal(path.basename(path.dirname(r.saved[0].copy)), 'pre-undo-777');
+  assert.equal(fs.readFileSync(r.saved[0].copy, 'utf8'), '回退之后我自己改的\n');
+  assert.equal(r.restored, 3);
+  assert.deepEqual(r.skipped, []);
+});
+
+test('没记成、另存失败:不覆盖(算 skipped),用户改的内容还在', async () => {
+  const f = fixture();
+  const bid = await ck.backupBeforeRewind(f.P, f.home, f.slug, SID, Q1, f.bk, 888);
+  fs.writeFileSync(path.join(f.proj, 'a.txt'), '我改的\n');
+  const r = await withWriteFail(p => p.includes('pre-undo-'), () => ck.undoRewind(f.bk, bid));
+  assert.equal(fs.readFileSync(path.join(f.proj, 'a.txt'), 'utf8'), '我改的\n');
+  assert.deepEqual(r.skipped.map(p => path.basename(p)), ['a.txt']);
+  assert.deepEqual(r.saved, []);
+});
+
+test('openInHubMsg:会话号、项目目录的大小写不同也认得出', () => {
+  const slugOf = (p) => String(p).replace(/[^A-Za-z0-9-]/g, '-');
+  assert.match(ck.openInHubMsg([{ projPath: 'c:\\Proj\\', sid: '' }], 'C--proj', SID, slugOf), /还没认出是哪个会话/);
+  assert.match(ck.openInHubMsg([{ projPath: 'D:\\x', sid: SID.toUpperCase() }], 'C--proj', SID, slugOf), /正在总控里开着/);
 });

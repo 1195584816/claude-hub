@@ -14,22 +14,28 @@ const { runKillable } = require('../lib/killtree');
 
 const alive = (pid) => { try { process.kill(pid, 0); return true; } catch { return false; } };
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+// 超时给 10 秒:windows-latest 上 PowerShell / node 冷启动可能好几秒,1.5 / 3 秒时孙子还没起来就到点了(2026-11-18 上游审查)。
+// 孙子要睡 60 秒,10 秒到点时它一定还活着,测的仍是「超时后连孙子一起杀」。
+const TIMEOUT = 10000;
+const tmpDirs = [];
+test.after(() => { for (const d of tmpDirs) try { fs.rmSync(d, { recursive: true, force: true }); } catch {} });
 
 function grandchild() {
   const d = fs.mkdtempSync(path.join(os.tmpdir(), 'hub-kt-'));
+  tmpDirs.push(d);
   const js = path.join(d, 'sleeper.js');
   const pidFile = path.join(d, 'pid');
   fs.writeFileSync(js, `require('fs').writeFileSync(${JSON.stringify(pidFile)}, String(process.pid)); setTimeout(() => {}, 60000);`);
   return { js, pidFile };
 }
 async function waitPid(pidFile) {
-  for (let i = 0; i < 100 && !fs.existsSync(pidFile); i++) await sleep(50);
+  for (let i = 0; i < 200 && !fs.existsSync(pidFile); i++) await sleep(50);   // 最多等 10 秒
   return +fs.readFileSync(pidFile, 'utf8');
 }
 
 test('超时:经 shell(cmd.exe)起的孙子进程也被杀掉,结果标成 timedOut', async () => {
   const { js, pidFile } = grandchild();
-  const p = runKillable(`node "${js}"`, null, {}, 1500);
+  const p = runKillable(`node "${js}"`, null, {}, TIMEOUT);
   const pid = await waitPid(pidFile);
   assert.ok(alive(pid), '孙子进程应该先起来了');
   const r = await p;
@@ -40,7 +46,7 @@ test('超时:经 shell(cmd.exe)起的孙子进程也被杀掉,结果标成 timed
 
 test('超时:经 powershell.exe 起的孙子进程也被杀掉', { skip: process.platform !== 'win32' }, async () => {
   const { js, pidFile } = grandchild();
-  const p = runKillable('powershell.exe', ['-NoProfile', '-Command', `node '${js}'`], {}, 3000);
+  const p = runKillable('powershell.exe', ['-NoProfile', '-Command', `node '${js}'`], {}, TIMEOUT);
   const pid = await waitPid(pidFile);
   const r = await p;
   assert.equal(r.timedOut, true);

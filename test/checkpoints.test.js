@@ -31,9 +31,12 @@ const Q1 = '6d9dced9-fc80-4427-9508-e7d776944754';
 const Q2 = '7e0e0000-0000-4000-8000-000000000002';
 const EXIT = '38e10710-33ea-4e04-9b40-c3145009d7d6';
 const iso = (minAgo) => new Date(Date.now() - minAgo * 60e3).toISOString();
+const tmpRoots = [];
+test.after(() => { for (const d of tmpRoots) try { fs.rmSync(d, { recursive: true, force: true }); } catch {} });
 
 function fixture() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'hub-ckpt-'));
+  tmpRoots.push(root);
   const proj = path.join(root, 'proj');
   const home = path.join(root, 'claude');
   const slug = 'C--proj';

@@ -3503,6 +3503,7 @@ function ckRenderMain() {
   const undoBar = ckUndo ? `<div class="ckbar ${ckUndo.unsure ? 'warn' : 'ok'}">${ckUndo.unsure
       ? `没能确认回退结果(${esc((ckUndo.msg || '').slice(0, 120))}),文件可能已经回退了一部分。回退前的样子存在 ${esc(ckUndo.dir)},可以撤销放回去。`
       : `已把文件回退到「${esc((ckUndo.prompt || '').slice(0, 40))}」之前。回退前的样子存在 ${esc(ckUndo.dir)}。`}
+      ${ckUndo.recorded === false ? '<br>注意:没能记下回退后的样子,撤销会用备份覆盖这些文件(回退之后你改过的内容会先另存到备份目录下的 pre-undo-时间 文件夹)。' : ''}
       <button class="btn ghost sm" onclick="ckUndoRewind()">撤销这次回退</button><button class="btn ghost sm" onclick="ckUndo=null;ckRenderMain()">知道了</button></div>` : '';
   const gitBtn = pj ? `<button class="btn ghost sm" onclick="ckGit()">${ico('file', 'sm')}Git 未提交的改动</button>` : '';
   if (!it) { el.innerHTML = undoBar + `<div class="ckacts">${gitBtn}</div><div class="agempty">${ckSid ? '左边选一个检查点。' : ''}</div>`; return; }
@@ -3551,6 +3552,7 @@ function ckPlanBar(it) {
   const shown = ckPlan.changes.slice(0, 30);
   return `<div class="ckbar warn" style="display:block">
     <div style="margin-bottom:6px">回退会动这 ${ckPlan.changes.length} 个文件(动之前会先备份,之后能撤销):</div>
+    <div class="tmsg" style="margin-bottom:6px">请先确认这个会话没在别处运行:总控只认得出自己开着的标签和 5 分钟内有写入的会话,外部终端里开着、但一阵子没动的会话认不出来。</div>
     <div style="max-height:180px;overflow:auto;font-family:var(--mono,monospace);font-size:12px;line-height:1.7">${shown.map(c => `<div><span class="gf-k ${c.kind === '恢复' ? '新' : c.kind}">${esc(c.kind)}</span> ${esc(ckRel(c.path))} <span class="tmsg">${esc(KIND[c.kind] || '')}</span></div>`).join('')}${ckPlan.changes.length > shown.length ? `<div class="tmsg">…还有 ${ckPlan.changes.length - shown.length} 个</div>` : ''}</div>
     <div style="margin-top:8px;display:flex;gap:8px"><button class="btn sm" onclick="ckRewindConfirm()" ${ckBusy ? 'disabled' : ''}>${ckBusy ? '回退中…' : '确认回退'}</button><button class="btn ghost sm" onclick="ckPlan=null;ckRenderMain()" ${ckBusy ? 'disabled' : ''}>取消</button></div>
   </div>`;
@@ -3577,9 +3579,9 @@ async function ckRewindConfirm() {
   try { r = await hub.ckptRewind(pj.sessSlug, ckSid, it.id, ckPlan.changes.map(c => c.path)); } catch (e) { r = { ok: false, msg: String(e) }; }
   ckBusy = false;
   if (r && r.replan) { hubToast(r.msg); ckPlan = null; ckRenderMain(); await ckRewind(); return; }
-  const note = r && r.bid && r.recorded === false ? '(没能记下回退后的样子:撤销时只放回备份,不会删任何文件)' : '';
-  if (r && r.ok) { ckUndo = { bid: r.bid, dir: r.backupDir, prompt: it.prompt }; hubToast('文件已回退' + note); }
-  else if (r && r.unsure && r.bid) { ckUndo = { bid: r.bid, dir: r.backupDir, prompt: it.prompt, unsure: true, msg: r.msg }; hubToast('没能确认回退结果,备份已保留' + note); }
+  const note = r && r.bid && r.recorded === false ? '(没能记下回退后的样子:撤销时不删文件;要覆盖的文件会先把当时的内容另存一份)' : '';
+  if (r && r.ok) { ckUndo = { bid: r.bid, dir: r.backupDir, prompt: it.prompt, recorded: r.recorded !== false }; hubToast('文件已回退' + note); }
+  else if (r && r.unsure && r.bid) { ckUndo = { bid: r.bid, dir: r.backupDir, prompt: it.prompt, unsure: true, msg: r.msg, recorded: r.recorded !== false }; hubToast('没能确认回退结果,备份已保留' + note); }
   else hubToast('没能回退:' + ((r && r.msg) || '未知原因'));
   await ckLoad();
 }
@@ -3590,11 +3592,12 @@ async function ckUndoRewind() {
   try { r = await hub.ckptUndo(ckUndo.bid); } catch (e) { r = { ok: false, msg: String(e) }; }
   ckBusy = false;
   if (r && r.ok) {
-    const sk = r.skipped || [], kp = r.kept || [];
+    const sk = r.skipped || [], kp = r.kept || [], sv = r.saved || [];
     const names = (l) => l.slice(0, 3).map(p => p.split(/[\\/]/).pop()).join('、') + (l.length > 3 ? ' 等' : '');
     hubToast(`已撤销:放回 ${r.restored} 个文件` + (r.removed ? `,删掉 ${r.removed} 个回退时出现的文件` : '')
-      + (sk.length ? `。有 ${sk.length} 个文件回退后又被改过或读不了,没动它们:${names(sk)}(原来的内容还在 ${ckUndo.dir})` : '')
-      + (kp.length ? `。有 ${kp.length} 个文件没删(拿不准是不是回退弄出来的):${names(kp)}` : ''));
+      + (sk.length ? `。有 ${sk.length} 个文件回退后又被改过、读不了或写不进去,没动它们:${names(sk)}(原来的内容还在 ${ckUndo.dir})` : '')
+      + (kp.length ? `。有 ${kp.length} 个文件没删(拿不准是不是回退弄出来的):${names(kp)}` : '')
+      + (sv.length ? `。覆盖前把 ${sv.length} 个文件当时的内容另存了:${names(sv.map(x => x.path))}(在 ${ckUndo.dir} 下的 pre-undo 文件夹)` : ''));
     ckUndo = null;
   }
   else hubToast('撤销失败:' + ((r && r.msg) || '未知原因') + '。备份还在 ' + ckUndo.dir);

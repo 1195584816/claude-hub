@@ -415,11 +415,11 @@ ipcMain.handle('ckpt:diff', async (e, slug, sid, id, key) => {
 });
 // 回退 / 撤销会写、会删用户项目里的文件,同一个会话同一时间只许做一件(按会话加锁)
 const ckptBusy = new Set();
-// 会话还在跑就不许动它的文件:总控里开着(包括同项目里还没认出会话号的新标签),或者会话记录最近一分钟有写入(外部终端 / 手机上在跑)
+// 会话还在跑就不许动它的文件:总控里开着(包括同项目里还没认出会话号的新标签),或者会话记录最近 5 分钟有写入(外部终端 / 手机上在跑)
 async function ckptRunningMsg(slug, sid, since = 0) {
   const open = ckpt.openInHubMsg([...termMeta.values()], slug, sid, data.slugOf);
   if (open) return open;
-  if (await ckpt.sessionBusy(P.CLAUDE_PROJECTS, P.CLAUDE_HOME, slug, sid, Date.now(), 60000, since)) return '这个会话一分钟内还有写入,可能正在别处运行。等它停下来再回退。';
+  if (await ckpt.sessionBusy(P.CLAUDE_PROJECTS, P.CLAUDE_HOME, slug, sid, Date.now(), ckpt.BUSY_MS, since)) return '这个会话 5 分钟内还有写入,可能正在别处运行。等它停下来再回退。';
   return '';
 }
 // 回退前先看会动哪些文件,给确认框列出来;拿不准就在这一步拒绝
