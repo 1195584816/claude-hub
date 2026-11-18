@@ -32,6 +32,7 @@ contextBridge.exposeInMainWorld('hub', {
   termInput: (id, d) => ipcRenderer.send('term:input', id, d),
   termResize: (id, c, r) => ipcRenderer.send('term:resize', id, c, r),
   termKill: (id) => ipcRenderer.send('term:kill', id),
+  termBindSid: (id, sid) => ipcRenderer.send('term:bindSid', id, sid),
   onTermData: (cb) => ipcRenderer.on('term:data', (e, m) => cb(m)),
   onTermExit: (cb) => ipcRenderer.on('term:exit', (e, m) => cb(m)),
   clipImage: () => ipcRenderer.invoke('clip:image'),

@@ -2687,7 +2687,7 @@ async function bindNewSid(tabId, projPath, before) {
     let now = [];
     try { now = await hub.sessions(p.sessSlug, p.mainSession, p.path); } catch { continue; }
     const fresh = now.filter(x => !before.has(x.sid)).sort((x, y) => y.mtime - x.mtime);
-    if (fresh.length) { t.sid = fresh[0].sid; saveOpenTabs(); renderSessions(); refreshCtx(); return; }   // 刚绑上就刷,别等 15 秒 tick
+    if (fresh.length) { t.sid = fresh[0].sid; hub.termBindSid && hub.termBindSid(t.id, t.sid); saveOpenTabs(); renderSessions(); refreshCtx(); return; }   // 刚绑上就刷,别等 15 秒 tick
   }
 }
 async function restoreTabs() {
@@ -3481,12 +3481,25 @@ function ckRenderList() {
 }
 function ckPick(id) { ckSel = id; ckFile = null; ckPlan = null; ckRenderList(); ckRenderMain(); }
 const ckRel = (abs) => { const pj = ckPj(); const b = pj ? pj.path.replace(/[\\/]+$/, '') + '\\' : ''; return b && abs.toLowerCase().startsWith(b.toLowerCase()) ? abs.slice(b.length) : abs; };
+// <ck-open>
+// 会话是不是在总控里开着(开着就不许直接回退文件)。新开的会话标签认出会话号之前 sid 是空的,
+// 同一个项目里有这样的标签就拿不准是不是这个会话 —— 一律当开着。主进程 ckpt.openInHubMsg 还会再查一遍。
+// test/ckpt-ui.test.js 截这段真源码测。
+function ckOpenMsg(tabs, sid, projPath) {
+  if (!sid) return '';
+  if (tabs.some(t => t.sid === sid)) return '这个会话正在总控里开着,不能直接回退文件(那边的 Claude 不知道文件被退了,接着改会乱)。先关掉它的终端标签,或者用「在会话里用 /rewind」连对话一起退。';
+  const norm = (p) => String(p || '').replace(/[\\/]+$/, '').toLowerCase();
+  if (projPath && tabs.some(t => !t.sid && norm(t.projPath) === norm(projPath))) return '这个项目里有新开的会话标签还没认出是哪个会话(可能就是这一个),不能直接回退文件。先关掉它的终端标签再回退。';
+  return '';
+}
+// </ck-open>
 function ckRenderMain() {
   const el = document.getElementById('ckMain');
   const pj = ckPj();
   const it = ckItems.find(x => x.id === ckSel);
   const sess = ckSessList.find(s => s.sid === ckSid);
-  const open = ckSid && termTabs.some(t => t.sid === ckSid);
+  const openMsg = ckOpenMsg(termTabs, ckSid, pj && pj.path);
+  const open = !!openMsg;
   const undoBar = ckUndo ? `<div class="ckbar ${ckUndo.unsure ? 'warn' : 'ok'}">${ckUndo.unsure
       ? `没能确认回退结果(${esc((ckUndo.msg || '').slice(0, 120))}),文件可能已经回退了一部分。回退前的样子存在 ${esc(ckUndo.dir)},可以撤销放回去。`
       : `已把文件回退到「${esc((ckUndo.prompt || '').slice(0, 40))}」之前。回退前的样子存在 ${esc(ckUndo.dir)}。`}
@@ -3498,7 +3511,7 @@ function ckRenderMain() {
       <div style="font-size:15px;font-weight:600;line-height:1.5;word-break:break-all">${esc(it.prompt || '(空提问)')}</div>
       <div class="tmsg" style="margin-top:4px">${esc(fmtAgTime(it.at))} · ${esc(sess ? (sess.title || '') : '')}</div>
     </div>
-    ${open ? '<div class="ckbar warn">这个会话正在总控里开着,不能直接回退文件(那边的 Claude 不知道文件被退了,接着改会乱)。先关掉它的终端标签,或者用「在会话里用 /rewind」连对话一起退。</div>' : ''}
+    ${open ? `<div class="ckbar warn">${esc(openMsg)}</div>` : ''}
     ${ckPlanBar(it)}
     <div class="ckacts">
       <button class="btn sm" id="ckRewBtn" onclick="ckRewind()" ${!open && !ckBusy && (it.files.length || ckItems.indexOf(it) > 0) ? '' : 'disabled'} title="用官方 claude --rewind-files:把这个会话改过的文件恢复成这条提问发出之前的样子">${ckBusy ? '回退中…' : '回退文件到这条提问之前'}</button>
@@ -3545,7 +3558,8 @@ function ckPlanBar(it) {
 async function ckRewind() {
   const pj = ckPj(), it = ckItems.find(x => x.id === ckSel);
   if (!pj || !it || ckBusy) return;
-  if (termTabs.some(t => t.sid === ckSid)) { hubToast('这个会话正在总控里开着,先关掉它的终端标签再回退'); return; }
+  const openMsg = ckOpenMsg(termTabs, ckSid, pj.path);
+  if (openMsg) { hubToast(openMsg); return; }
   let r = null;
   try { r = await hub.ckptPlan(pj.sessSlug, ckSid, it.id); } catch (e) { r = { ok: false, msg: String(e) }; }
   if (ckSel !== it.id) return;   // 等的时候换了一条
@@ -4637,7 +4651,7 @@ hub.onFeed(async (list) => {
     if (!r.sid) continue;
     if (termTabs.some(t => t.sid === r.sid)) continue;
     const t = termTabs.find(t => !t.sid && (r.cwd ? t.projPath === r.cwd : leaf(t.projPath) === r.proj));
-    if (t) { t.sid = r.sid; if (r.task) t.title = r.task; }
+    if (t) { t.sid = r.sid; hub.termBindSid && hub.termBindSid(t.id, t.sid); if (r.task) t.title = r.task; }
   }
   renderTermTabs();
   // 当前项目有新完成 → 刷新会话列表(新会话会冒出来)

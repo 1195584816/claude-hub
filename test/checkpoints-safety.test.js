@@ -174,7 +174,7 @@ test('main.js 接线:回退 / 撤销按会话加锁、会话在跑就拒绝、�
   assert.match(rew, /recordAfterRewind\(P\.REWIND_BACKUPS, bid, \{ jsonlMtime \}\)/);
   assert.match(undo, /ckptBusy\.has\(sid\)/);
   assert.match(undo, /ckptRunningMsg\(m\.slug, sid, Number\(m\.jsonlMtime\) \|\| 0\)/);
-  assert.match(MAIN, /const ckptOpenInHub = \(sid\) => \[\.\.\.termMeta\.values\(\)\]\.some\(m => m && m\.sid === sid\)/);
+  assert.match(MAIN, /ckpt\.openInHubMsg\(\[\.\.\.termMeta\.values\(\)\], slug, sid, data\.slugOf\)/);
   assert.match(MAIN, /ckpt\.cleanBackups\(P\.REWIND_BACKUPS\)\.catch\(\(\) => \{\}\)/);
 });
 
@@ -197,4 +197,31 @@ test('cleanBackups:超过 14 天的删,最新 10 份不管多旧都留;不是我
 test('git diff --no-index 带 --no-ext-diff --no-textconv(不跑用户配置的外部对比程序)', () => {
   const src = fs.readFileSync(path.join(__dirname, '..', 'lib', 'checkpoints.js'), 'utf8');
   assert.match(src, /\['diff', '--no-index', '--no-color', '--no-ext-diff', '--no-textconv', '--', a, b\]/);
+});
+
+// 2026-11-17 打包实测:审查第 5 条只拦住了「标签认领到会话号的」。新开的会话标签要等 Claude Code 写出会话记录
+// 才认领会话号,界面只盯开标签后的 30 秒(bindNewSid),第一句话发得晚就一直认领不上;主进程的 termMeta.sid
+// 对新会话从来是空的。结果会话就在总控里开着、一分钟没写入,回退照样放行 —— 实测弹出了确认框。
+// → 同一个项目目录里有还没认出会话号的标签时,拿不准它是不是这个会话,一律拒绝。
+test('总控里开着:会话号对上就拒绝;同项目有没认出会话号的标签也拒绝;别的项目的不算', () => {
+  const slugOf = (p) => String(p).replace(/[^A-Za-z0-9-]/g, '-');   // 假依赖:main 传的是 data.slugOf
+  const slug = slugOf('C:\\proj');
+  assert.equal(ck.openInHubMsg([], slug, SID, slugOf), '');
+  assert.match(ck.openInHubMsg([{ projPath: 'D:\\other', sid: SID }], slug, SID, slugOf), /正在总控里开着/);
+  assert.match(ck.openInHubMsg([{ projPath: 'C:\\proj', sid: '' }], slug, SID, slugOf), /还没认出是哪个会话/);
+  // 同项目里别的、已经认出会话号的标签:不拦
+  assert.equal(ck.openInHubMsg([{ projPath: 'C:\\proj', sid: NOPE }], slug, SID, slugOf), '');
+  // 别的项目里没认出会话号的标签:不拦
+  assert.equal(ck.openInHubMsg([{ projPath: 'D:\\other', sid: '' }], slug, SID, slugOf), '');
+  // 老备份没有 slug:只能按会话号认
+  assert.equal(ck.openInHubMsg([{ projPath: 'C:\\proj', sid: '' }], '', SID, slugOf), '');
+  assert.equal(ck.openInHubMsg([null, undefined], slug, SID, slugOf), '');
+});
+
+test('main.js:回退 / 撤销都走 openInHubMsg;界面认领到会话号会告诉主进程(term:bindSid)', () => {
+  const MAIN = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
+  assert.match(MAIN, /ck(pt)?\.openInHubMsg\(\[\.\.\.termMeta\.values\(\)\], slug, sid, data\.slugOf\)/);
+  assert.doesNotMatch(MAIN, /ckptOpenInHub/);
+  assert.match(MAIN, /ipcMain\.on\('term:bindSid'/);
+  assert.match(fs.readFileSync(path.join(__dirname, '..', 'preload.js'), 'utf8'), /termBindSid: \(id, sid\) => ipcRenderer\.send\('term:bindSid', id, sid\)/);
 });

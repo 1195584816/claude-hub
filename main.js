@@ -415,10 +415,10 @@ ipcMain.handle('ckpt:diff', async (e, slug, sid, id, key) => {
 });
 // 回退 / 撤销会写、会删用户项目里的文件,同一个会话同一时间只许做一件(按会话加锁)
 const ckptBusy = new Set();
-const ckptOpenInHub = (sid) => [...termMeta.values()].some(m => m && m.sid === sid);
-// 会话还在跑就不许动它的文件:总控里开着,或者会话记录最近一分钟有写入(外部终端 / 手机上在跑)
+// 会话还在跑就不许动它的文件:总控里开着(包括同项目里还没认出会话号的新标签),或者会话记录最近一分钟有写入(外部终端 / 手机上在跑)
 async function ckptRunningMsg(slug, sid, since = 0) {
-  if (ckptOpenInHub(sid)) return '这个会话正在总控里开着。先关掉它的终端标签,或者在会话里用 /rewind。';
+  const open = ckpt.openInHubMsg([...termMeta.values()], slug, sid, data.slugOf);
+  if (open) return open;
   if (await ckpt.sessionBusy(P.CLAUDE_PROJECTS, P.CLAUDE_HOME, slug, sid, Date.now(), 60000, since)) return '这个会话一分钟内还有写入,可能正在别处运行。等它停下来再回退。';
   return '';
 }
@@ -476,7 +476,7 @@ ipcMain.handle('ckpt:undo', async (e, bid) => {
     ckptBusy.add(sid);
     // 回退本身会写一笔会话记录,只有比回退后更新的写入才算「又在跑了」;老备份没有 slug 就只看总控里开没开着
     const running = m.slug ? await ckptRunningMsg(m.slug, sid, Number(m.jsonlMtime) || 0).catch(() => '')
-      : (ckptOpenInHub(sid) ? '这个会话正在总控里开着,先关掉它的终端标签再撤销。' : '');
+      : ckpt.openInHubMsg([...termMeta.values()], '', sid, data.slugOf);
     if (running) return { ok: false, msg: running };
     return Object.assign({ ok: true }, await ckpt.undoRewind(P.REWIND_BACKUPS, bid));
   } catch (err) { return { ok: false, msg: String(err && err.message || err) }; }
@@ -843,6 +843,8 @@ function spawnTermWith(px, projPath, title, sid, cmdOverride) {
 ipcMain.handle('term:open', (e, projPath, title, sid, cmdOverride) => spawnTerm(projPath, title, sid, cmdOverride));
 ipcMain.on('term:input', (e, id, data) => { const p = terms.get(id); if (p) p.write(data); });
 ipcMain.on('term:resize', (e, id, cols, rows) => { const p = terms.get(id); try { if (p) p.resize(cols, rows); } catch {} });
+// 新开的会话一开始没有会话号,界面认领到之后告诉这边(检查点回退要靠它判断「会话是不是在总控里开着」)。只填空的,不改已有的
+ipcMain.on('term:bindSid', (e, id, sid) => { const m = termMeta.get(id); if (m && !m.sid && ckpt.UUID.test(String(sid || ''))) m.sid = String(sid); });
 ipcMain.on('term:kill', (e, id) => { const p = terms.get(id); if (p) { try { p.kill(); } catch {} terms.delete(id); } });
 // 手动选图片文件(剪贴板读不到时的可靠兜底)
 ipcMain.handle('clip:pickImage', async () => {

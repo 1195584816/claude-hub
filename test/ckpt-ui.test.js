@@ -13,7 +13,7 @@ test('回退:先要清单(ckptPlan)再确认,确认时把看过的清单交给�
   const rew = between('async function ckRewind()', 'async function ckRewindConfirm()');
   assert.match(rew, /hub\.ckptPlan\(/);
   assert.doesNotMatch(rew, /hub\.ckptRewind\(/);
-  assert.match(rew, /termTabs\.some\(t => t\.sid === ckSid\)/);
+  assert.match(rew, /ckOpenMsg\(termTabs, ckSid, pj\.path\)/);
   const conf = between('async function ckRewindConfirm()', 'async function ckUndoRewind()');
   assert.match(conf, /hub\.ckptRewind\(pj\.sessSlug, ckSid, it\.id, ckPlan\.changes\.map\(c => c\.path\)\)/);
   assert.match(between('function ckRenderMain()', 'function ckGit()'), /id="ckRewBtn" onclick="ckRewind\(\)" \$\{!open && !ckBusy/);
@@ -36,4 +36,19 @@ test('看屏幕判断 Claude Code 能不能接输入', () => {
   const body = between('async function ckRewindInSession()', 'async function ckFork()');
   assert.doesNotMatch(body, /setTimeout\(r, 2500\)/);
   assert.match(body, /ckPromptState\(/);
+});
+
+// 2026-11-17 打包实测:新开的会话标签没认出会话号(sid 空)时,界面只按会话号比,开着照样弹出回退确认框。
+// 同项目里有没认出会话号的标签就当开着;认领到会话号时要告诉主进程(主进程的 termMeta 靠它判断)。
+const ckOpenMsg = new Function(between('// <ck-open>', '// </ck-open>') + '\nreturn ckOpenMsg;')();
+test('会话开着的判断:会话号对上;同项目有没认出会话号的标签;别的情况不算', () => {
+  const S = 'b4f1e144-9dbd-4b6f-9002-6a79401686f9', O = '00000000-0000-4000-8000-00000000dead';
+  assert.match(ckOpenMsg([{ sid: S, projPath: 'D:\\x' }], S, 'C:\\proj'), /正在总控里开着/);
+  assert.match(ckOpenMsg([{ sid: '', projPath: 'c:\\Proj\\' }], S, 'C:\\proj'), /还没认出是哪个会话/);
+  assert.equal(ckOpenMsg([{ sid: O, projPath: 'C:\\proj' }], S, 'C:\\proj'), '');
+  assert.equal(ckOpenMsg([{ sid: '', projPath: 'D:\\other' }], S, 'C:\\proj'), '');
+  assert.equal(ckOpenMsg([{ sid: '', projPath: 'C:\\proj' }], '', 'C:\\proj'), '');
+  assert.match(between('function ckRenderMain()', 'function ckGit()'), /const openMsg = ckOpenMsg\(termTabs, ckSid, pj && pj\.path\)/);
+  // 两处认领会话号(bindNewSid 轮询、完成通知)都要告诉主进程
+  assert.equal((SRC.match(/hub\.termBindSid\(t\.id, t\.sid\)/g) || []).length, 2);
 });
