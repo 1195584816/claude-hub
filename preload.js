@@ -77,6 +77,7 @@ contextBridge.exposeInMainWorld('hub', {
   ckptUndo: (bid) => ipcRenderer.invoke('ckpt:undo', bid),
   mcpConfig: (projPath) => ipcRenderer.invoke('mcp:config', projPath),
   mcpStatus: (projPath) => ipcRenderer.invoke('mcp:status', projPath),
+  mcpStatusCancel: () => ipcRenderer.invoke('mcp:statusCancel'),
   mcpAdd: (req) => ipcRenderer.invoke('mcp:add', req),
   mcpRemove: (name, scope, projPath) => ipcRenderer.invoke('mcp:remove', name, scope, projPath),
   mcpDesktop: () => ipcRenderer.invoke('mcp:desktop'),

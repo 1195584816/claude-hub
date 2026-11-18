@@ -3469,10 +3469,11 @@ const mcSelRow = () => mcSel === null ? null : (mcRows.find(r => mcKey(r) === mc
 let mcForm = { name: '', scope: 'local', type: 'stdio', command: '', args: '', env: '', url: '', headers: '', json: '' }, mcAddMode = 'form';
 let mcBusy = false, mcRes = '', mcDelArm = 0, mcDesk = null, mcDeskSel = new Set(), mcDeskScope = 'user';
 const mcPj = () => projects.find(p => p.path === mcProj);
+// 打开页面 / 换项目只读配置文件,不跑 claude mcp list:它会把每个服务器真的启动一遍,
+// 包括陌生仓库 .mcp.json 里没批准过的。连接状态只在用户点「检测连接」时才去查。
 async function mcOpen() {
   if (!mcProj || !mcPj()) { mcProj = curPath || (projects[0] && projects[0].path) || null; mcStatus = null; }
   await mcLoad();
-  if (!mcStatus) mcCheck();
 }
 async function mcLoad() {
   try { mcCfg = await hub.mcpConfig(mcProj || ''); } catch (e) { mcCfg = { ok: false, msg: String(e) }; }
@@ -3487,7 +3488,10 @@ async function mcCheck() {
   mcStatus = r && r.ok ? r : { list: [], failed: (r && r.msg) || '检测失败' };
   mcRender();
 }
-function mcPickProj(v) { mcProj = v; mcSel = null; mcStatus = null; mcLoad().then(mcCheck); }
+function mcPickProj(v) {
+  if (mcStatus === 'loading') { mcStatusSeq++; hub.mcpStatusCancel().catch(() => {}); }   // 上一个项目的检测不要了,连进程一起结束
+  mcProj = v; mcSel = null; mcStatus = null; mcLoad();
+}
 // 表格的一行:配置里的服务器 + 只在 claude mcp list 里出现的(claude.ai 连接器)
 function mcBuildRows() {
   const st = mcStatus && mcStatus.list ? mcStatus.list : [];
@@ -3518,14 +3522,15 @@ function mcRender() {
   const shown = mcRows.map((r, i) => [r, i]).filter(([r]) => mcFilter === 'all' || r.scope === mcFilter);
   const broken = mcCfg && mcCfg.broken ? Object.entries(mcCfg.broken).map(([k, v]) => `<div class="agwarn">${k === 'claudeJson' ? '~/.claude.json' : '项目的 .mcp.json'} 读不了:${esc(v)}<br>这里不会去改它;请先用编辑器修好(Claude Code 自己也会读不了)。</div>`).join('') : '';
   const stMsg = mcStatus === 'loading' ? '正在用 claude mcp list 挨个连一遍,服务器多时要几十秒…'
-    : (mcStatus && mcStatus.failed ? '没能检测连接状态:' + mcStatus.failed : (mcStatus && mcStatus.timedOut ? '检测超时,没回来的显示「未检测」' : ''));
+    : (mcStatus && mcStatus.failed ? '没能检测连接状态:' + mcStatus.failed : (mcStatus && mcStatus.timedOut ? '检测超时,没回来的显示「未检测」'
+    : (!mcStatus && mcRows.length ? '连接状态要点「检测连接」才查:它会把每个服务器真的启动一遍,所以不自动跑。' : '')));
   const opts = orderedProjects().map(p => `<option value="${escAttr(p.path)}"${p.path === mcProj ? ' selected' : ''}>${esc(p.short || p.path)}</option>`).join('');
   main.innerHTML = `
     <div class="mctop">
       <div style="flex:1;min-width:240px"><h2>MCP 服务器</h2>
         <div class="tmsg" style="margin-top:4px">给 Claude Code 接上外部工具(数据库、浏览器、GitHub…)。增删都通过官方 <code>claude mcp</code> 命令完成。</div></div>
       <label class="tmsg" style="display:flex;align-items:center;gap:6px">项目<select onchange="mcPickProj(this.value)">${opts || '<option value="">(还没有项目)</option>'}</select></label>
-      <button class="btn ghost sm" onclick="mcCheck()" ${mcStatus === 'loading' ? 'disabled' : ''}>${mcStatus === 'loading' ? '检测中…' : '重新检测连接'}</button>
+      <button class="btn ghost sm" onclick="mcCheck()" ${mcStatus === 'loading' ? 'disabled' : ''} title="跑 claude mcp list:会把每个服务器真的启动一遍(包括项目 .mcp.json 里的)。陌生仓库请先看清配置再点">${mcStatus === 'loading' ? '检测中…' : (mcStatus ? '重新检测连接' : '检测连接')}</button>
       <button class="btn ghost sm" onclick="mcShow('import')">从 Claude Desktop 导入</button>
       <button class="btn sm" onclick="mcShow('add')">${ico('plus', 'sm')}添加服务器</button>
     </div>
@@ -3581,6 +3586,7 @@ function mcRenderSide() {
       <div class="mcseg"><button class="${mcAddMode === 'form' ? 'on' : ''}" onclick="mcAddMode='form';mcRenderSide()">填表</button><button class="${mcAddMode === 'json' ? 'on' : ''}" onclick="mcAddMode='json';mcRenderSide()">粘贴 JSON</button></div>
       ${form}
       <label class="agf">范围<select onchange="mcForm.scope=this.value;mcRenderSide()">${mcScopeOpts(f.scope)}</select><span class="hint">${esc(MC_SCOPE[f.scope][1])}</span></label>
+      ${f.scope === 'project' ? '<div class="agwarn">「项目共享」写进项目的 .mcp.json,会跟着仓库提交。环境变量 / 请求头里不能写真实的密钥(会被拒绝),要写就写成 ${环境变量名},或者改用「仅本项目」/「全局」。</div>' : ''}
       <div class="tmsg">将执行:</div>
       <div class="mcpre">claude mcp add-json -s ${esc(f.scope)} ${esc((mcAddMode === 'form' ? f.name : (f.name || '<JSON 里的名字>')) || '<名称>')} '&lt;配置 JSON&gt;'</div>
       <div class="ckacts"><button class="btn sm" onclick="mcAdd()" ${mcBusy ? 'disabled' : ''}>${mcBusy ? '添加中…' : '添加'}</button></div>
@@ -3598,7 +3604,8 @@ function mcRenderSide() {
       return `<label><input type="checkbox" ${dup ? 'disabled' : ''} ${mcDeskSel.has(s.name) ? 'checked' : ''} onchange="this.checked?mcDeskSel.add(mcDesk.servers[${i}].name):mcDeskSel.delete(mcDesk.servers[${i}].name)">
         <span><b>${esc(s.name)}</b>${dup ? ' <span class="tmsg">(已有同名,跳过)</span>' : ''}<br><span class="tmsg" style="word-break:break-all">${esc(mcTarget(s))}${s.envKeys.length ? ' · 环境变量 ' + esc(s.envKeys.join(', ')) : ''}</span></span></label>`;
     }).join('')}</div>
-      <label class="agf">导入到<select onchange="mcDeskScope=this.value">${mcScopeOpts(mcDeskScope)}</select></label>
+      <label class="agf">导入到<select onchange="mcDeskScope=this.value;mcRenderSide()">${mcScopeOpts(mcDeskScope)}</select></label>
+      ${mcDeskScope === 'project' ? '<div class="agwarn">导入到「项目共享」时,带真实环境变量值的服务器会被拒绝(密钥不能明文写进会跟着仓库提交的 .mcp.json)。</div>' : ''}
       <div class="ckacts"><button class="btn sm" onclick="mcImport()" ${mcBusy ? 'disabled' : ''}>${mcBusy ? '导入中…' : '导入选中的'}</button></div>`;
     el.innerHTML = `<div class="aghead"><b>从 Claude Desktop 导入</b><button class="btn ghost sm" onclick="mcShow('detail')">关闭</button></div>
       <div class="tmsg" style="line-height:1.7">读 Claude Desktop 的配置,选中的逐个用 claude mcp add-json 加进来(环境变量一起带上)。Claude Desktop 那边不动。</div>
@@ -3644,8 +3651,7 @@ async function mcAdd() {
     hubToast('已添加');
     mcForm = { name: '', scope: mcForm.scope, type: mcForm.type, command: '', args: '', env: '', url: '', headers: '', json: '' };
   }
-  await mcLoad();
-  if (r && r.results && r.results.some(x => x.ok)) mcCheck();
+  await mcLoad();   // 不自动检测连接(见 mcOpen),要看连不连得上就点「检测连接」
 }
 async function mcRemove() {
   const s = mcSelRow();
@@ -3672,8 +3678,7 @@ async function mcImport() {
   mcBusy = false;
   mcRes = mcResHtml(r);
   mcDeskSel = new Set();
-  await mcLoad();
-  if (r && r.results && r.results.some(x => x.ok)) mcCheck();
+  await mcLoad();   // 不自动检测连接(见 mcOpen)
 }
 
 // ===== 检查点页 =====

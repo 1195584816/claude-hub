@@ -81,6 +81,22 @@ test('超时后杀不掉:兜底时间到了也返回(killFailed),不会永远挂
   }
 });
 
+// 2026-11-18 上游审查(MCP):开新检测前要结束上一次 —— 调用方拿着 cancel.kill() 随时结束整棵进程树
+test('cancel.kill():中途结束,孙子进程也被杀掉,结果标成 canceled', async () => {
+  const { js, pidFile } = grandchild();
+  const cancel = {};
+  const p = runKillable(`node "${js}"`, null, { cancel }, 30000);
+  const pid = await waitPid(pidFile);
+  assert.equal(typeof cancel.kill, 'function');
+  cancel.kill();
+  const r = await p;
+  assert.equal(r.canceled, true);
+  assert.equal(r.timedOut, false);
+  for (let i = 0; i < 40 && alive(pid); i++) await sleep(100);
+  assert.equal(alive(pid), false, '取消后孙子进程还活着');
+  cancel.kill();   // 结束之后再调也不出事
+});
+
 test('不超时:正常拿到输出和退出码,stdin 已关(不会干等)', async () => {
   const r = await runKillable(process.execPath, ['-e', 'process.stdin.on("end",()=>{console.log("got-eof");process.exit(3)});process.stdin.resume()'], {}, 10000);
   assert.equal(r.timedOut, false);

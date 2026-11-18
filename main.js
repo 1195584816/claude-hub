@@ -408,31 +408,42 @@ ipcMain.handle('agents:list', () => agents.load(P.AGENTS));
 ipcMain.handle('agents:save', async (e, list) => { try { return await agents.save(P.AGENTS, list); } catch (err) { return { ok: false, msg: String(err) }; } });
 // MCP 页:读配置文件给界面看;增删一律走官方 claude mcp add-json / remove(lib/mcp.js)。env/headers 的值不出主进程
 const mcpCwd = (p) => (typeof p === 'string' && path.isAbsolute(p)) ? p : undefined;
-async function mcpRun(args, projPath, timeout) {
+// cwd 没给(没选项目)就在用户目录跑,不落到 Electron 自己的工作目录里
+async function mcpRun(args, projPath, timeout, cancel) {
   const { env } = await termEnv();
-  return mcp.runClaude(args, { cwd: mcpCwd(projPath), env: claudeCli.withClaudeOnPath(env), runDir: P.MCP_RUNS, timeout });
+  return mcp.runClaude(args, { cwd: mcpCwd(projPath) || os.homedir(), env: claudeCli.withClaudeOnPath(env), runDir: P.MCP_RUNS, timeout, cancel });
 }
 ipcMain.handle('mcp:config', async (e, projPath) => {
   try { return Object.assign({ ok: true }, await mcp.readConfig(P.CLAUDE_JSON, mcpCwd(projPath))); }
   catch (err) { return { ok: false, msg: String(err && err.message || err) }; }
 });
+// 检测连接 = claude mcp list,它会把每个服务器真的启动一遍(包括项目 .mcp.json 里的)。
+// 所以只在用户点「检测连接」时跑;同一时间只跑一次,开新检测 / 换项目前先结束上一次
+let mcpStatusRun = null;
+ipcMain.handle('mcp:statusCancel', () => { if (mcpStatusRun) { try { mcpStatusRun.kill(); } catch {} } return { ok: true }; });
 ipcMain.handle('mcp:status', async (e, projPath) => {
+  if (mcpStatusRun) { try { mcpStatusRun.kill(); } catch {} }
+  const cancel = {};
+  mcpStatusRun = cancel;
   try {
-    const r = await mcpRun(['mcp', 'list'], projPath, 90000);
+    const r = await mcpRun(['mcp', 'list'], projPath, 90000, cancel);
+    if (r.canceled) return { ok: false, canceled: true, msg: '已取消' };
     return { ok: true, list: mcp.parseList(r.out), timedOut: r.timedOut, raw: r.ok ? '' : r.out.slice(-600) };
   } catch (err) { return { ok: false, msg: String(err && err.message || err) }; }
+  finally { if (mcpStatusRun === cancel) mcpStatusRun = null; }
 });
 // items: [{ name, scope, form? | json? }] —— 一条条加,每条报结果
 ipcMain.handle('mcp:add', async (e, req) => {
   const results = [];
   try {
     const scope = req && req.scope;
+    mcp.checkProjFor(scope, req && req.projPath);
     let items;
     if (req && req.mode === 'json') items = mcp.parsePasted(req.json, req.name).map(x => ({ name: x.name, cfg: x.cfg }));
     else items = [{ name: req && req.name, cfg: mcp.buildConfig((req && req.form) || {}) }];
     for (const it of items) {
       let args;
-      try { args = mcp.addArgs(it.name, scope, it.cfg); } catch (err) { results.push({ name: it.name, ok: false, msg: err.message }); continue; }
+      try { mcp.checkProjectSecrets(scope, it.name, it.cfg); args = mcp.addArgs(it.name, scope, it.cfg); } catch (err) { results.push({ name: it.name, ok: false, msg: err.message }); continue; }
       const r = await mcpRun(args, req.projPath, 60000);
       results.push({ name: it.name, ok: r.ok, msg: r.out.slice(-400) });
     }
@@ -440,7 +451,7 @@ ipcMain.handle('mcp:add', async (e, req) => {
   } catch (err) { return { ok: false, msg: String(err && err.message || err), results }; }
 });
 ipcMain.handle('mcp:remove', async (e, name, scope, projPath) => {
-  try { const r = await mcpRun(mcp.removeArgs(name, scope), projPath, 60000); return { ok: r.ok, msg: r.out.slice(-400) }; }
+  try { mcp.checkProjFor(scope, projPath); const r = await mcpRun(mcp.removeArgs(name, scope), projPath, 60000); return { ok: r.ok, msg: r.out.slice(-400) }; }
   catch (err) { return { ok: false, msg: String(err && err.message || err) }; }
 });
 ipcMain.handle('mcp:desktop', async () => {
@@ -448,12 +459,13 @@ ipcMain.handle('mcp:desktop', async () => {
   return r.ok ? { ok: true, servers: r.servers.map(s => s.sum) } : r;
 });
 ipcMain.handle('mcp:importDesktop', async (e, names, scope, projPath) => {
+  try { mcp.checkProjFor(scope, projPath); } catch (err) { return { ok: false, msg: err.message, results: [] }; }
   const r = await mcp.readDesktop(P.CLAUDE_DESKTOP_CFG);
   if (!r.ok) return r;
   const results = [];
   for (const s of r.servers.filter(x => Array.isArray(names) && names.includes(x.name))) {
     let args;
-    try { args = mcp.addArgs(s.name, scope, s.cfg); } catch (err) { results.push({ name: s.name, ok: false, msg: err.message }); continue; }
+    try { mcp.checkProjectSecrets(scope, s.name, s.cfg); args = mcp.addArgs(s.name, scope, s.cfg); } catch (err) { results.push({ name: s.name, ok: false, msg: err.message }); continue; }
     const x = await mcpRun(args, projPath, 60000);
     results.push({ name: s.name, ok: x.ok, msg: x.out.slice(-400) });
   }

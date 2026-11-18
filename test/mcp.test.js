@@ -139,3 +139,42 @@ test('cleanRuns:只删超过时限的参数文件,别的文件和新文件不动
   assert.deepEqual(fs.readdirSync(d).sort(), ['mcp-3-4.json', 'notes.txt']);
   assert.equal(await m.cleanRuns(path.join(d, '没有这个目录')), 0);
 });
+
+// 2026-11-18 上游审查:范围选「项目共享」且带 env / headers 时,密钥会明文写进项目的 .mcp.json(跟着仓库提交)。
+// 主进程拒绝;只写 ${环境变量名} 引用的放行(那是 .mcp.json 官方支持的写法,值不在文件里)。
+test('项目共享:env / headers 写了真实值就拒绝;${变量} 引用放行;别的范围不管', () => {
+  const withEnv = { type: 'stdio', command: 'npx', env: { GITHUB_TOKEN: 'ghp_real', HOME_DIR: '${HOME}' } };
+  assert.deepEqual(m.literalSecrets(withEnv), ['GITHUB_TOKEN']);
+  assert.throws(() => m.checkProjectSecrets('project', 'gh', withEnv), /GITHUB_TOKEN[\s\S]*\.mcp\.json/);
+  assert.doesNotThrow(() => m.checkProjectSecrets('local', 'gh', withEnv));
+  assert.doesNotThrow(() => m.checkProjectSecrets('user', 'gh', withEnv));
+  assert.doesNotThrow(() => m.checkProjectSecrets('project', 'gh', { env: { A: '${A}', B: ' ${B_2} ' } }));
+  assert.throws(() => m.checkProjectSecrets('project', 'h', { type: 'http', url: 'https://x', headers: { Authorization: 'Bearer abc' } }), /Authorization/);
+  assert.throws(() => m.checkProjectSecrets('project', 'h', { headers: { Authorization: 'Bearer ${TOKEN}' } }), '只认整个值都是引用的;拼接的照样拒绝');
+  assert.doesNotThrow(() => m.checkProjectSecrets('project', 'plain', { command: 'npx', args: ['x'] }));
+});
+
+// 2026-11-18 上游审查:范围不是 user、项目路径却是空的,原来会在 Electron 自己的工作目录里执行
+test('checkProjFor:「仅本项目 / 项目共享」没给项目就报错;全局不要项目', () => {
+  for (const bad of ['', null, undefined, 'relative\\dir', 123]) {
+    assert.throws(() => m.checkProjFor('local', bad), /先选一个项目/, String(bad));
+    assert.throws(() => m.checkProjFor('project', bad), /先选一个项目/);
+  }
+  assert.doesNotThrow(() => m.checkProjFor('local', path.resolve('/x/y')));
+  assert.doesNotThrow(() => m.checkProjFor('user', ''));
+});
+
+test('main.js 接线:增删导入先查项目、项目共享查密钥;检测连接同一时间只跑一次、没项目在用户目录跑', () => {
+  const MAIN = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
+  const sec = (a, b) => MAIN.slice(MAIN.indexOf(a), MAIN.indexOf(b, MAIN.indexOf(a) + 1));
+  const add = sec("ipcMain.handle('mcp:add'", "ipcMain.handle('mcp:remove'");
+  assert.ok(add.indexOf('checkProjFor(scope') >= 0 && add.indexOf('checkProjFor(scope') < add.indexOf('mcpRun('));
+  assert.ok(add.indexOf('checkProjectSecrets(scope') < add.indexOf('mcpRun('));
+  assert.match(sec("ipcMain.handle('mcp:remove'", "ipcMain.handle('mcp:desktop'"), /checkProjFor\(scope, projPath\); const r = await mcpRun/);
+  const imp = sec("ipcMain.handle('mcp:importDesktop'", '// 检查点');
+  assert.ok(imp.indexOf('checkProjFor(scope') < imp.indexOf('mcpRun('));
+  assert.ok(imp.indexOf('checkProjectSecrets(scope') < imp.indexOf('mcpRun('));
+  const st = sec("ipcMain.handle('mcp:status'", "ipcMain.handle('mcp:add'");
+  assert.ok(st.indexOf('mcpStatusRun.kill()') < st.indexOf('mcpRun('), '开新检测前先结束上一次');
+  assert.match(MAIN, /cwd: mcpCwd\(projPath\) \|\| os\.homedir\(\)/);
+});
