@@ -7,7 +7,7 @@
 // 钉住的几件事:
 //   · 标准写法 c;<base64>、省略目标的 ;<base64>、带换行的 base64 都能解出原文(含中文)
 //   · 「读剪贴板」的查询 ? 一律不理(不能让终端里的程序借我们读走剪贴板)
-//   · 坏数据(不是 base64、不是 UTF-8、没有分号、空)→ 什么都不写
+//   · 坏数据(不是 base64、不是 UTF-8、没有分号、空、解出来超过 1MB)→ 什么都不写
 //   · openTerm 里真的把它注册成 OSC 52 的处理函数
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -42,7 +42,7 @@ test('openTerm 里注册成 OSC 52 的处理函数,写剪贴板、也记成「�
 
 // 2026-11-17 自查:原来是无条件写剪贴板 —— 终端里任何输出(Claude 回显的恶意文件内容、cat 的日志)
 // 只要带一段 ESC]52;c;<base64> 就能悄悄换掉剪贴板,用户下次粘贴的就是别人塞的命令。
-// 现在只在「窗口在前台 + 2 秒内在这个终端里按下过鼠标(松开在哪都算)或按过键」时才写。
+// 现在只在「窗口在前台 + 在这个终端里按下鼠标、松开后 2 秒内(松开在哪都算)」时才写。
 const osc52Allowed = new Function(between('// <osc52>', '// </osc52>') + '\nreturn osc52Allowed;')();
 
 test('写剪贴板只认「人刚在这个终端里动过」', () => {
@@ -55,12 +55,22 @@ test('写剪贴板只认「人刚在这个终端里动过」', () => {
   assert.equal(osc52Allowed(now + 5000, now, true), false);         // 时间倒着走(改过系统时间)也不放
 });
 
-test('openTerm 里先过 osc52Allowed 再写;松开鼠标和按键都记成「人动过」', () => {
+// 2026-11-18 上游审查:按键也算「人动过」太宽(用户打字时程序照样能换剪贴板),只认松开鼠标之后;
+// 写入时要提示一句;解出来超过 1MB 的直接丢掉。
+test('openTerm 里先过 osc52Allowed 再写;只有松开鼠标算「人动过」,按键不算;写了要提示', () => {
   const body = SRC.slice(SRC.indexOf('async function openTerm('), SRC.indexOf('function activateTerm('));
   const h = body.slice(body.indexOf('registerOscHandler(52,'));
   assert.ok(h.indexOf('osc52Allowed(') >= 0 && h.indexOf('osc52Allowed(') < h.indexOf('navigator.clipboard.writeText'), '要先判断再写剪贴板');
   // 按下在终端里、松开可能在终端外 —— mouseup 要挂在 window 上,不能只挂 pane
   assert.match(body, /pane\.addEventListener\('mousedown',/);
   assert.match(body, /window\.addEventListener\('mouseup', onUp, true\)/);
-  assert.match(body, /pane\.addEventListener\('keydown', markUser, true\)/);
+  assert.doesNotMatch(body, /addEventListener\('keydown'/);
+  assert.match(h.slice(0, h.indexOf('// 输入法上屏')), /hubToast\(/);
+});
+
+test('解出来超过 1MB 的不写;刚好 1MB 的照写', () => {
+  const MB = 1024 * 1024;
+  assert.equal(osc52Text('c;' + b64('a'.repeat(MB))), 'a'.repeat(MB));
+  assert.equal(osc52Text('c;' + b64('a'.repeat(MB + 1))), '');
+  assert.equal(osc52Text('c;' + 'QUFB'.repeat(2 * MB)), '');            // 8MB 的 base64,不去解
 });

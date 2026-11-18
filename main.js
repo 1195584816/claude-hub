@@ -17,6 +17,9 @@ const claudeCli = require('./lib/claude-cli');
 const sysProxy = require('./lib/sysproxy').create();
 const { writeJsonAtomic } = require('./lib/atomic-json');
 const SETTINGS = P.CLAUDE_SETTINGS;
+// 内嵌终端只在 Win10 上换用 node-pty 自带的新版 ConPTY(见 lib/conpty.js)。os.release() 不碰文件,启动时算一次
+let BUNDLED_CONPTY = false;
+try { BUNDLED_CONPTY = require('./lib/conpty').useBundledConpty(process.platform, os.release()); } catch {}
 
 // 数据文件放用户数据目录(每台机器自己的),路径全部动态推导,不写死任何人的机器
 const HUB_HOME = P.APP_DATA;
@@ -715,15 +718,16 @@ function spawnTermWith(px, projPath, title, sid, cmdOverride) {
     const id = 't' + Date.now() + Math.floor(Math.random() * 1e4);
     const cmd = cmdOverride ? cmdOverride : (sid ? `claude --resume "${sid}"` : 'claude');
     // 官方安装器把 claude 装到 用户目录\.local\bin 但不加 PATH —— 这里补上(追加在末尾,已经找得到的电脑行为不变)
-    // dll=true:用 node-pty 自带的新版 ConPTY(conpty.dll + OpenConsole.exe),不用系统自带的那份。
+    // 只在 Win10 上用 node-pty 自带的新版 ConPTY(conpty.dll + OpenConsole.exe),见 lib/conpty.js。
     // Win10 自带的 ConPTY 老旧:Claude Code 输出滚出屏幕的行直接丢掉(xterm 里没有滚动历史,滚轮翻不上去),
-    // 输入行里中文后面的字会被吞一格、光标和文字错位。实测见 test/conpty.test.js。
+    // 输入行里中文后面的字会被吞一格、光标和文字错位。实测见 test/conpty.test.js。Win11 及其它情况保持原来的行为。
     // 新版起不来(文件缺失、被拦)就退回系统自带的 —— 拿不准就放行,至少还能用。
     const spawnPs = (dll) => pty.spawn('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', cmd], {
       name: 'xterm-256color', cols: 120, rows: 32, cwd: projPath, env: claudeCli.withClaudeOnPath(px.env), useConptyDll: dll
     });
     let p;
-    try { p = spawnPs(true); } catch { p = spawnPs(false); }
+    if (BUNDLED_CONPTY) { try { p = spawnPs(true); } catch { p = spawnPs(false); } }
+    else p = spawnPs(false);
     terms.set(id, p);
     termMeta.set(id, { projPath, short: title || '', sid: sid || '', title: title || '', buf: '' });
     p.onData(d => {
