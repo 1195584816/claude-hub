@@ -65,7 +65,7 @@ npm test
 2. **主进程和启动路径上不许有同步的文件 / 注册表探测。** 用户的 PATH 里有连不上的网络盘时,一次 `existsSync` 能卡二十多秒。
 3. **把同步函数改成 async 之前,重查所有「先查后做」的调用方。** 中间多出来的 `await` 就是别人能插进来的空档。`spawnTermWith` 必须保持同步。
 4. **不要写 `new Promise(async …)`。** 里面抛错不会变成 rejected,而是永远挂着,串行队列就堵死了。
-5. **不要替用户改 Claude Code 的配置。** 软件不往 `~/.claude/settings.json` 写任何东西:模型、思考努力交给官方的 `/model`、`/effort`;通知钩子只把脚本放进 `~/.claude/hooks`,`settings.json` 里那一段由用户自己加。改 PATH 只能往后追加;用户已有的代理环境变量一个字不动。唯一的例外是 MCP 页的添加 / 移除:只能调用官方的 `claude mcp add-json` / `claude mcp remove`,不直接改任何配置文件,而且只在用户自己点按钮时才执行,不能自动跑。
+5. **不要替用户改 Claude Code 的配置。** 软件不往 `~/.claude/settings.json` 写任何东西:模型、思考努力交给官方的 `/model`、`/effort`;通知钩子只把脚本放进 `~/.claude/hooks`,`settings.json` 里那一段由用户自己加。改 PATH 只能往后追加;用户已有的代理环境变量一个字不动。
 6. **保存设置时只写用户真动过的值。** 界面上显示的可能是兜底值,顺手写回去就是替用户改了配置。
 7. **「没有配置」和「配置读坏了」要分开处理。** 混成一个分支,新默认值就会落到老用户头上。
 8. **不要把个人数据提交进来。** `.gitignore` 里列的那些(`projects.json`、`notify-config.json`、`auth.json`、`pastes/` 等)都是个人数据;截图、日志里也别带真实路径、令牌、邮箱。

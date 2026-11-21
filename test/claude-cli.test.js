@@ -283,7 +283,7 @@ test('接线:终端和版本检查都用补过 PATH 的环境;检测出错一律
   // 已经开着的会话直接切过去,这一步必须在闸前面(不然装了又卸的电脑连切标签都被拦)
   const ot = html.slice(html.indexOf('async function openTerm('));
   assert.ok(ot.indexOf('if (ex) { activateTerm(ex.id); return; }') < ot.indexOf('!(await claudeReady('), '切到已开的标签要排在闸前面');
-  assert.ok(html.includes('if (t) { t.clInstall = false; t.term.write('), '安装进程结束后要摘掉「正在安装」的标记');
+  assert.ok(/if \(t\) \{ (t\.exited = true; )?t\.clInstall = false; t\.term\.write\(/.test(html), '安装进程结束后要摘掉「正在安装」的标记');
   assert.ok(html.includes('if (cmdOverride && clInfo && cmdOverride === clInfo.installCmd) {'), '内嵌终端起不来时,一键安装不许落到外部终端去跑裸 claude');
   assert.ok(main.includes("exec('claude --no-session-persistence -p \"/usage\"', { timeout: 90000, env: claudeCli.withClaudeOnPath(px.env),"), '额度查询也要补 PATH');
   assert.ok(main.includes("{ detached: true, stdio: 'ignore', env: claudeCli.withClaudeOnPath(px.env) }"), '外部终端兜底也要补 PATH');

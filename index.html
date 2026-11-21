@@ -385,6 +385,7 @@ body.zen .edge { display:block; }
 .tl-row .tq { flex:1; color:var(--tx2); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .tl-row .tv { color:var(--tx); font-weight:600; white-space:nowrap; }
 .tl-row .tm2 { color:var(--tx3); font-size:10px; white-space:nowrap; }
+.sidcopy { cursor:copy; text-decoration:underline dotted; text-underline-offset:3px; font-family:var(--mono, monospace); }
 .toktag { cursor:pointer; text-decoration:underline dotted; text-underline-offset:3px; }
 /* 会话卡上的「@名字」= 别的 Claude 会话 @ 它用的名字(Claude Code 自己那套,/rename 设的) */
 .cctag { cursor:pointer; border-radius:4px; padding:0 4px; background:var(--card2); color:var(--tx3); max-width:150px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:inline-block; vertical-align:bottom; }
@@ -516,7 +517,7 @@ body.zen .edge { display:block; }
 body.dragging * { cursor:grabbing !important; }
 
 /* ===== P1 内嵌终端 ===== */
-#termWrap { position:fixed; top:46px; left:calc(262px + var(--navw)); right:0; bottom:0; background:#0b0e19; display:none; flex-direction:column; z-index:20; border-left:1px solid var(--line); }
+#termWrap { position:fixed; top:46px; left:262px; right:0; bottom:0; background:#0b0e19; display:none; flex-direction:column; z-index:20; border-left:1px solid var(--line); }
 #termWrap.on { display:flex; }
 .termbar { display:flex; align-items:center; gap:8px; padding:7px 10px; border-bottom:1px solid var(--line); background:var(--topbar); flex-shrink:0; }
 .termtabs { display:flex; gap:6px; overflow-x:auto; flex:1; min-width:0; }
@@ -524,6 +525,7 @@ body.dragging * { cursor:grabbing !important; }
 .termtabs::-webkit-scrollbar-thumb { background:var(--line); }
 .ttab { display:flex; align-items:center; gap:7px; padding:5px 8px 5px 11px; border-radius:8px; background:var(--card); border:1px solid var(--line); cursor:pointer; font-size:11.5px; color:var(--tx2); white-space:nowrap; flex-shrink:0; }
 .ttab.on { color:var(--tx); border-color:color-mix(in srgb, var(--acc) 40%, transparent); background:color-mix(in srgb, var(--acc) 10%, transparent); }
+.ttab .tcc { color:var(--tx3); font-size:10.5px; font-family:var(--mono, monospace); }
 .ttab .tx { cursor:pointer; opacity:.55; display:flex; padding:2px; border-radius:4px; }
 .ttab .tx:hover { opacity:1; color:var(--red); background:rgba(248,113,113,.12); }
 #termHost { flex:1; position:relative; min-height:0; }
@@ -615,6 +617,13 @@ kbd { background:var(--card2); border:1px solid var(--line2); border-bottom-widt
 code { background:color-mix(in srgb, var(--acc) 10%, transparent); color:var(--acc); border:1px solid color-mix(in srgb, var(--acc) 22%, transparent); border-radius:5px; padding:0 5px; font-size:.9em; font-family:'Cascadia Mono',Consolas,monospace; }
 .htoast { position:fixed; bottom:26px; left:50%; transform:translateX(-50%); background:var(--float); border:1px solid var(--line2); color:var(--tx); border-radius:99px; padding:8px 18px; font-size:12px; z-index:99; box-shadow:0 8px 30px rgba(0,0,0,.4); opacity:0; transition:opacity .2s; pointer-events:none; }
 .htoast.on { opacity:1; }
+/* 终端里路径旁的小工具条(打开 / 打开所在文件夹 / 拖到微信) */
+.pathbar { position:fixed; z-index:130; display:none; align-items:center; gap:4px; padding:4px; background:var(--float); border:1px solid var(--line2); border-radius:10px; box-shadow:0 8px 24px rgba(0,0,0,.35); font-size:12px; user-select:none; }
+.pathbar.on { display:flex; }
+.pathbar button, .pathbar .pbdrag { background:transparent; border:0; color:var(--tx); padding:5px 10px; border-radius:7px; cursor:pointer; font:inherit; white-space:nowrap; }
+.pathbar button:hover { background:var(--ghost); }
+.pathbar .pbdrag { color:var(--acc); border:1px dashed var(--line2); cursor:grab; }
+.pathbar .pbdrag:active { cursor:grabbing; }
 .gd-foot { display:flex; gap:10px; justify-content:flex-end; margin-top:6px; }
 
 /* ===== 铃铛提示卡:从右上角铃铛底下滑出来,点一下直达那个会话 =====
@@ -802,129 +811,6 @@ body[data-theme="azure"] .brandmark, body[data-theme="daylight"] .brandmark { ba
 /* ---- 9. 焦点环(2px 主色,偏移 3px) ---- */
 :focus-visible { outline:2px solid var(--ring); outline-offset:3px; }
 .btn { transition:background .14s, color .14s; }
-
-/* ===== 左侧功能栏 + 功能页(会话 / Agents …) =====
-   顶栏原样不动;功能栏贴在顶栏下面最左边,原来的三栏和终端整体右移 --navw。 */
-:root { --navw:60px; }
-.main { margin-left:var(--navw); }
-#navRail { position:fixed; top:46px; left:0; bottom:0; width:var(--navw); display:flex; flex-direction:column; align-items:center; gap:4px; padding:10px 0; background:var(--bg0); border-right:1px solid var(--line); z-index:21; }
-.navi { width:50px; padding:7px 0 5px; display:flex; flex-direction:column; align-items:center; gap:3px; border:none; border-radius:8px; background:transparent; color:var(--tx2); font:inherit; font-size:10.5px; cursor:pointer; position:relative; }
-.navi .ic { width:19px; height:19px; }
-.navi:hover { background:var(--card); color:var(--tx); }
-.navi.on { background:color-mix(in srgb, var(--acc) 13%, transparent); color:var(--acc); font-weight:600; }
-.navi .ncnt { position:absolute; top:3px; right:6px; min-width:15px; height:15px; padding:0 4px; border-radius:99px; background:var(--acc); color:var(--acc-ink); font-size:9.5px; font-weight:700; display:flex; align-items:center; justify-content:center; }
-body.zen #navRail { display:none; }
-body.zen .main { margin-left:0; }
-.fpage { position:fixed; top:46px; left:var(--navw); right:0; bottom:0; display:none; z-index:30; background:var(--bg1); }
-.fpage.on { display:flex; }
-
-/* Agents 页 */
-#agList { width:270px; flex-shrink:0; background:var(--bg0); border-right:1px solid var(--line); padding:14px 10px; display:flex; flex-direction:column; gap:4px; overflow-y:auto; }
-.aghead { display:flex; align-items:center; gap:6px; padding:0 4px 8px; }
-.aghead b { flex:1; font-size:14px; }
-.agrow { padding:9px 11px; border-radius:7px; border:1px solid transparent; cursor:pointer; }
-.agrow:hover { background:var(--card); border-color:var(--line); }
-.agrow.sel { background:var(--sel, var(--card)); border-color:color-mix(in srgb, var(--acc) 35%, transparent); }
-.agrow .n { display:flex; align-items:center; gap:7px; font-size:12.5px; font-weight:600; }
-.agrow .n span { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.agrow .m { font-size:11px; color:var(--tx3); margin:3px 0 0 14px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.agdot { width:7px; height:7px; border-radius:99px; background:var(--tx3); flex-shrink:0; opacity:.6; }
-.agdot.run { background:var(--acc); opacity:1; }
-.agrun { font-size:11px; color:var(--acc); font-weight:600; }
-.agnote { margin-top:auto; padding:10px 11px; border:1px dashed var(--line2); border-radius:7px; color:var(--tx3); font-size:11px; line-height:1.6; }
-#agMain { flex:1; min-width:0; padding:18px 22px; display:flex; flex-direction:column; gap:14px; overflow-y:auto; }
-.agtop { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
-.agtop h2 { margin:0; font-size:18px; }
-.agtop .d { color:var(--tx2); font-size:12px; margin-top:3px; }
-.agtop select { background:var(--bg1); border:1px solid var(--line); color:var(--tx); border-radius:6px; padding:6px 8px; font:inherit; font-size:12px; max-width:220px; }
-.aggrid { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:14px; flex:1; min-height:0; }
-@media (max-width: 1100px) { .aggrid { grid-template-columns:minmax(0, 1fr); } }
-.agcard { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:14px 16px; display:flex; flex-direction:column; gap:12px; min-height:0; }
-.agcard > b { font-size:13px; }
-.agf { display:flex; flex-direction:column; gap:5px; font-size:12px; color:var(--tx2); }
-.agf input[type=text], .agf textarea { background:var(--bg1); border:1px solid var(--line); color:var(--tx); border-radius:6px; padding:7px 10px; font:inherit; font-size:12px; outline:none; }
-.agf input[type=text]:focus, .agf textarea:focus { border-color:color-mix(in srgb, var(--acc) 55%, transparent); }
-.agf textarea { min-height:170px; flex:1; resize:vertical; font-family:'Cascadia Mono','Consolas','Microsoft YaHei UI',monospace; line-height:1.6; }
-.agf .hint { color:var(--tx3); font-size:11px; }
-.agtools { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:8px; padding:10px 12px; border:1px solid var(--line); border-radius:6px; }
-.agtools label { display:flex; align-items:flex-start; gap:7px; color:var(--tx); font-size:12px; cursor:pointer; }
-.agtools label small { display:block; color:var(--tx3); font-size:10.5px; }
-.agacts { display:flex; gap:8px; justify-content:flex-end; align-items:center; }
-.agacts .tmsg { margin-right:auto; }
-.btn.danger { color:var(--red); }
-.agtbl { width:100%; border-collapse:collapse; font-size:12px; }
-.agtbl td { padding:8px 4px; border-top:1px solid var(--line); color:var(--tx2); }
-.agtbl td:first-child { color:var(--tx); }
-.agempty { color:var(--tx3); font-size:12px; padding:6px 0; }
-/* MCP 页 */
-#mcpMain { flex:1; min-width:0; padding:18px 22px; display:flex; flex-direction:column; gap:12px; overflow-y:auto; }
-#mcpSide { width:400px; flex-shrink:0; border-left:1px solid var(--line); background:var(--bg0); padding:16px; overflow-y:auto; display:flex; flex-direction:column; gap:12px; }
-.mctop { display:flex; align-items:flex-start; gap:10px; flex-wrap:wrap; }
-.mctop h2 { margin:0; font-size:17px; }
-.mctop select { background:var(--bg1); border:1px solid var(--line); color:var(--tx); border-radius:6px; padding:5px 8px; font:inherit; font-size:12px; }
-.mcchips { display:flex; gap:6px; flex-wrap:wrap; }
-.mcchip { padding:4px 11px; border-radius:99px; border:1px solid var(--line); background:var(--panel); font-size:12px; cursor:pointer; color:var(--tx2); }
-.mcchip.on { border-color:color-mix(in srgb, var(--acc) 55%, transparent); color:var(--acc); background:color-mix(in srgb, var(--acc) 8%, transparent); }
-.mctbl { width:100%; border-collapse:collapse; font-size:12.5px; background:var(--panel); border:1px solid var(--line); border-radius:8px; overflow:hidden; }
-.mctbl th { text-align:left; font-weight:600; color:var(--tx3); font-size:11.5px; padding:9px 12px; border-bottom:1px solid var(--line); }
-.mctbl td { padding:9px 12px; border-bottom:1px solid var(--line); vertical-align:middle; }
-.mctbl tr:last-child td { border-bottom:none; }
-.mctbl tbody tr { cursor:pointer; }
-.mctbl tbody tr:hover td { background:var(--card); }
-.mctbl tr.sel td { background:color-mix(in srgb, var(--acc) 8%, transparent); }
-.mctbl .tgt { font-family:'Cascadia Mono',Consolas,monospace; font-size:11.5px; color:var(--tx2); max-width:380px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.mcbadge { display:inline-block; padding:1px 8px; border-radius:99px; font-size:11px; border:1px solid var(--line2); color:var(--tx2); white-space:nowrap; }
-.mcst { display:inline-flex; align-items:center; gap:5px; font-size:12px; white-space:nowrap; }
-.mcst i { width:7px; height:7px; border-radius:99px; background:var(--tx3); }
-.mcst.ok i { background:#2e9e6a; } .mcst.ok { color:#2e9e6a; }
-.mcst.fail i { background:#d9534f; } .mcst.fail { color:#d9534f; }
-.mcst.pending i, .mcst.auth i { background:#e0a83a; } .mcst.pending, .mcst.auth { color:#c08a1e; }
-.mcst.wait { color:var(--tx3); }
-.mcdl { display:grid; grid-template-columns:76px 1fr; gap:7px 10px; font-size:12px; }
-.mcdl dt { color:var(--tx3); }
-.mcdl dd { margin:0; word-break:break-all; font-family:'Cascadia Mono',Consolas,monospace; font-size:11.5px; }
-.mcseg { display:flex; gap:0; border:1px solid var(--line); border-radius:6px; overflow:hidden; width:fit-content; }
-.mcseg button { border:none; background:var(--bg1); color:var(--tx2); padding:5px 12px; font:inherit; font-size:12px; }
-.mcseg button.on { background:color-mix(in srgb, var(--acc) 14%, var(--bg1)); color:var(--acc); font-weight:600; }
-#mcpSide > * { flex-shrink:0; }
-#mcpSide .agf textarea { min-height:70px; flex:none; }
-#mcpSide .agf select { background:var(--bg1); border:1px solid var(--line); color:var(--tx); border-radius:6px; padding:6px 8px; font:inherit; font-size:12px; }
-.mcpre { font-family:'Cascadia Mono',Consolas,monospace; font-size:11px; background:var(--bg1); border:1px solid var(--line); border-radius:6px; padding:8px 10px; word-break:break-all; color:var(--tx2); line-height:1.5; }
-.mcres { font-size:12px; line-height:1.6; white-space:pre-wrap; word-break:break-all; }
-.mcimp label { display:flex; gap:8px; align-items:flex-start; padding:6px 4px; font-size:12px; }
-/* 检查点页 */
-#ckSessCol { width:250px; flex-shrink:0; background:var(--bg0); border-right:1px solid var(--line); padding:14px 10px; display:flex; flex-direction:column; gap:4px; overflow-y:auto; }
-#ckSessCol select { background:var(--bg1); border:1px solid var(--line); color:var(--tx); border-radius:6px; padding:6px 8px; font:inherit; font-size:12px; margin:0 2px 8px; }
-#ckListCol { width:340px; flex-shrink:0; border-right:1px solid var(--line); padding:14px 12px; overflow-y:auto; display:flex; flex-direction:column; }
-#ckMain { flex:1; min-width:0; padding:16px 20px; display:flex; flex-direction:column; gap:12px; overflow:hidden; }
-.cksess { padding:8px 11px; border-radius:7px; border:1px solid transparent; cursor:pointer; }
-.cksess:hover { background:var(--card); border-color:var(--line); }
-.cksess.sel { background:var(--sel, var(--card)); border-color:color-mix(in srgb, var(--acc) 35%, transparent); }
-.cksess .t { font-size:12.5px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:flex; align-items:center; gap:6px; }
-.cksess .t span { overflow:hidden; text-overflow:ellipsis; }
-.cksess .m { font-size:11px; color:var(--tx3); margin-top:2px; }
-.ckopen { flex:none; font-size:10px; color:var(--acc); font-weight:600; }
-.ckitem { display:flex; gap:10px; cursor:pointer; }
-.ckrail { display:flex; flex-direction:column; align-items:center; width:14px; flex-shrink:0; }
-.ckrail i { width:11px; height:11px; border-radius:99px; border:2px solid var(--tx3); background:var(--bg1); margin-top:4px; flex-shrink:0; }
-.ckrail b { flex:1; width:2px; background:var(--line2); margin:3px 0 -4px; }
-.ckitem.has .ckrail i { border-color:var(--acc); }
-.ckitem.sel .ckrail i { background:var(--acc); border-color:var(--acc); }
-.ckbody { flex:1; min-width:0; padding:2px 8px 14px; border-radius:7px; }
-.ckitem:hover .ckbody { background:var(--card); }
-.ckitem.sel .ckbody { background:color-mix(in srgb, var(--acc) 9%, transparent); }
-.ckbody .p { font-size:12.5px; line-height:1.5; overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; word-break:break-all; }
-.ckbody .m { font-size:11px; color:var(--tx3); margin-top:3px; }
-.ckacts { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
-.ckfiles { display:flex; flex-wrap:wrap; gap:6px; }
-.ckf { display:flex; align-items:center; gap:6px; padding:4px 9px; border-radius:6px; border:1px solid var(--line); background:var(--panel); font-size:11.5px; cursor:pointer; max-width:100%; }
-.ckf.sel { border-color:color-mix(in srgb, var(--acc) 55%, transparent); }
-.ckf span:last-child { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-family:'Cascadia Mono',Consolas,monospace; }
-.ckdiff { flex:1; min-height:120px; background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:10px 12px; }
-.ckbar { padding:10px 12px; border-radius:7px; font-size:12px; line-height:1.6; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
-.ckbar.ok { border:1px solid color-mix(in srgb, var(--acc) 45%, transparent); background:color-mix(in srgb, var(--acc) 8%, transparent); }
-.ckbar.warn { border:1px solid color-mix(in srgb, #e0a83a 55%, transparent); background:color-mix(in srgb, #e0a83a 9%, transparent); }
-.agwarn { padding:10px 12px; border-radius:7px; border:1px solid color-mix(in srgb, var(--red) 45%, transparent); background:color-mix(in srgb, var(--red) 8%, transparent); color:var(--tx); font-size:12px; line-height:1.6; }
 </style>
 </head>
 <body>
@@ -1027,6 +913,13 @@ body.zen .main { margin-left:0; }
   </div>
 </div>
 
+<div class="bigbox" id="mcpbox">
+  <div class="panel" style="height:min(520px,80vh);width:min(760px,90vw)">
+    <div class="bhead"><b>MCP 服务器</b><span class="tmsg">来自 ~/.claude.json 与项目 .mcp.json(只读)</span>
+      <span class="close" onclick="document.getElementById('mcpbox').classList.remove('open')" id="mcpClose"></span></div>
+    <div class="bbody" id="mcpBody"></div>
+  </div>
+</div>
 <div class="viewer" id="formbox">
   <div class="box" style="width:480px;">
     <div class="head"><b id="fmTitle"></b><span class="close" onclick="formCancel()" id="fmClose"></span></div>
@@ -1038,25 +931,6 @@ body.zen .main { margin-left:0; }
       </div>
     </div>
   </div>
-</div>
-<nav id="navRail" aria-label="功能">
-  <button class="navi on" data-page="sess" onclick="setPage('sess')" title="会话:项目、会话和内嵌终端"></button>
-  <button class="navi" data-page="agents" onclick="setPage('agents')" title="Agents:存好的提示词 + 模型 + 工具,一键在项目里跑"></button>
-  <button class="navi" data-page="ckpt" onclick="setPage('ckpt')" title="检查点:Claude Code 每条提问前自动留的文件快照,能看改动、回退、撤销"></button>
-  <button class="navi" data-page="mcp" onclick="setPage('mcp')" title="MCP 服务器:看连没连上,加、删、从 Claude Desktop 导入"></button>
-</nav>
-<div class="fpage" id="pageMcp">
-  <section id="mcpMain"></section>
-  <aside id="mcpSide"></aside>
-</div>
-<div class="fpage" id="pageCkpt">
-  <aside id="ckSessCol"></aside>
-  <section id="ckListCol"></section>
-  <section id="ckMain"></section>
-</div>
-<div class="fpage" id="pageAgents">
-  <aside id="agList"></aside>
-  <section id="agMain"></section>
 </div>
 <div class="edge l" id="edgeL"></div>
 <div class="edge r" id="edgeR"></div>
@@ -1072,6 +946,7 @@ body.zen .main { margin-left:0; }
     <button class="btn ghost sm zenbtn" id="zenbtn" onclick="toggleZen()" title="专注模式:终端占满,两侧鼠标滑出(Esc 退出)">⛶ 专注</button>
     <button class="btn ghost sm" id="splitbtn" onclick="cycleSplit()" title="分屏:本项目多个会话并排(1/2/3屏循环)">▥ 分屏</button>
     <button class="btn ghost sm" onclick="attachImage()" title="贴图:优先读剪贴板截图,读不到就弹框选文件">📎 贴图</button>
+    <button class="btn ghost sm" id="hoBtn" onclick="handoffClear()" title="交接并清空:让当前会话把工作写成交接文件 → /clear → 新的上下文先读交接再接着做。会话名字不变,别的会话照样找得到它">🧾 交接并清空</button>
     <div class="termtabs" id="termTabs"></div>
     <div class="tfont">
       <span class="tfbtn" onclick="setTermFont(-1)" title="缩小(Ctrl+-)">A−</span>
@@ -1264,10 +1139,7 @@ const I = {
   ext: '<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><path d="M15 3h6v6"/><path d="M10 14L21 3"/>',
   pen: '<path d="M17 3a2.83 2.83 0 0 1 4 4L7.5 20.5 2 22l1.5-5.5z"/>',
   trash: '<path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>',
-  user: '<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/>',
-  bot: '<rect x="5" y="8" width="14" height="11" rx="3"/><path d="M12 4v4"/><circle cx="9.5" cy="13.5" r="1"/><circle cx="14.5" cy="13.5" r="1"/>',
-  branch: '<circle cx="6" cy="5" r="2.2"/><circle cx="6" cy="19" r="2.2"/><circle cx="18" cy="9" r="2.2"/><path d="M6 7.2v9.6"/><path d="M18 11.2c0 3.5-4 4.3-10.5 6.2"/>',
-  plug: '<path d="M9 2v6"/><path d="M15 2v6"/><path d="M6 8h12v3a6 6 0 0 1-12 0z"/><path d="M12 17v5"/>'
+  user: '<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/>'
 };
 // Claude 官方星芒(claude.ai 的 favicon 同款,取自官方品牌资源)。
 // 它是填充图形,和上面那套 fill:none + stroke 的线性图标不是一路,所以单独放、单独渲染。
@@ -1289,7 +1161,7 @@ document.getElementById('aclose').innerHTML = ico('x');
 document.getElementById('clclose').innerHTML = ico('x');
 document.getElementById('acctpill').insertAdjacentHTML('afterbegin', ico('user', 'sm'));
 document.getElementById('gclose').innerHTML = ico('x');
-['srchClose', 'gitClose', 'pmtClose', 'impClose'].forEach(id => { const el = document.getElementById(id); if (el) el.innerHTML = ico('x'); });
+['srchClose', 'gitClose', 'pmtClose', 'mcpClose', 'impClose'].forEach(id => { const el = document.getElementById(id); if (el) el.innerHTML = ico('x'); });
 document.getElementById('srchbtn').innerHTML = ico('search');
 document.getElementById('phonebtn').innerHTML = ico('maxsq');
 const phc = document.getElementById('phClose'); if (phc) phc.innerHTML = ico('x');
@@ -1509,6 +1381,7 @@ async function healUnreadCwd() {
   if (fixed) { saveUnread(); refreshUnreadUI(); }
 }
 function clearUnreadSid(sid) {
+  bellPopsDropSid(sid);   // 右上角这个会话的提示卡一起收掉(2026-11-21 三月:点了会话 / 全部已读,卡还挂着)
   let hit = false;
   for (const id in unread) { if (id === sid || unread[id].sid === sid) { delete unread[id]; hit = true; } }
   if (hit) { saveUnread(); refreshUnreadUI(); }
@@ -1827,10 +1700,13 @@ async function delPrompt(i) {
 }
 
 // ===== MCP 列表 =====
-// 原来是只读弹窗,现在并进左边功能栏的 MCP 页(增删、状态、导入都在那里)。这里只负责跳过去并选好项目。
-function openMcp(projPath) {
-  if (projPath) { mcProj = projPath; mcStatus = null; }
-  setPage('mcp');
+async function openMcp() {
+  const list = await hub.mcpList(curPath || '');
+  document.getElementById('mcpBody').innerHTML = list.length
+    ? list.map(m => `<div class="pmt-row"><span class="t"><b>${esc(m.name)}</b> <span class="badge">${esc(m.scope)}</span> <span style="color:var(--tx3)">${esc(m.type)} · ${esc(m.target)}</span></span></div>`).join('')
+      + '<div style="color:var(--tx3);font-size:11px;padding:10px 4px;">增删改请用 CLI:<code>claude mcp add/remove</code>(这里只展示,避免误改配置)</div>'
+    : '<div style="color:var(--tx3);font-size:12px;padding:14px;">没有配置 MCP 服务器。用 <code>claude mcp add</code> 添加后这里会显示。</div>';
+  document.getElementById('mcpbox').classList.add('open');
 }
 
 // ===== 专注模式 =====
@@ -2099,6 +1975,16 @@ function ltabsHtml() {
   (tot ? `<div class="totbar" onclick="toggleUsage()" title="所有项目历史累计 token(输入+缓存写+输出) · 点开看排行">
     ${projects.length} 个项目 · 累计 <b>${fmtTok(tot)}</b> tok<span class="arr">↗</span></div>` : '');
 }
+// 进行中行的第二行:项目名后面带上「@Claude 那边的名字」和 8 位会话号(点一下复制,和会话卡片上一样)。
+// 2026-11-20 三月:「左侧进行中的会话没有显示会话id」。新标签还没认出会话号时,先显示主进程对出来的默认编号
+function actIdHtml(t) {
+  const cc = (t.sid && ccSess[t.sid] && ccSess[t.sid].name) || (!t.sid && termCc[t.id] && termCc[t.id].name) || '';
+  const ccPart = cc && cc !== t.title ? ' · @' + esc(cc) : '';
+  // 还没认出会话号的新标签:用主进程按「目录 + 启动时间」从 Claude Code 登记里唯一对出来的那个(还没发第一句话时记录文件还不存在)
+  const sid = t.sid || (termCc[t.id] && termCc[t.id].sid) || '';
+  const sidPart = sid ? ` · <span class="sidcopy" title="点一下复制「会话名 + 完整会话号 + 记录文件路径」,粘给别的会话" onclick="copySid('${sid}', event, '${t.id}')">${sid.slice(0, 8)}</span>` : '';
+  return sidPart + ccPart;   // 会话号在前:这一栏窄,后面会被省略号截掉,先保住最常用的会话号
+}
 function renderActive() {
   const el = document.getElementById('colProj');
   const rows = termTabs.map(t => {
@@ -2109,7 +1995,7 @@ function renderActive() {
       <i class="sdot ${termStatus(t)}" data-st="${termStatus(t)}" title="${termStatusText(t)}"></i>
       <div class="info">
         <div class="t1">${esc(t.title)}</div>
-        <div class="t2">${esc(pj ? pj.short : t.projShort)}</div>
+        <div class="t2">${esc(pj ? pj.short : t.projShort)}${actIdHtml(t)}</div>
       </div>
       <span class="x" title="结束这个终端" onclick="closeTerm('${t.id}', event)">${ico('x','sm')}</span>
     </div>`;
@@ -2280,7 +2166,6 @@ function applySessFilter() {
 
 // ===== 会话 =====
 async function selProj(path, focusSid) {
-  if (curPage !== 'sess') setPage('sess');   // 从别的功能页点到项目/会话,回到会话页才看得见
   curPath = path;
   refreshCtx();   // 切项目立刻换读数
   const p = projects.find(x => x.path === path);
@@ -2340,7 +2225,7 @@ function projMoreMenu(path, ev) {
     { act: 'gemini', icon: 'terminal', label: '用 gemini 打开', run: () => openTerm(p.path, p.short, '', p.short + ' · gemini', 'gemini') },
     { sep: true },
     { act: 'git', icon: 'search', label: '查看 Git 改动', run: () => openGit(p.path, p.short) },
-    { act: 'mcp', icon: 'plug', label: 'MCP 服务器', run: () => openMcp(p.path) }
+    { act: 'mcp', icon: 'gear', label: 'MCP 服务器', run: () => openMcp() }
   ]);
 }
 function heroHtml(p) {
@@ -2388,7 +2273,7 @@ function renderSessions(focusSid) {
       <div class="stile" style="color:${c};background:${c}14;border:1px solid ${c}30">${ico('terminal')}</div>
       <div class="info">
         <div class="t">${s.isMain ? `<span class="gostar">${ico('star','sm')}</span>` : ''}${esc(s.title)}</div>
-        <div class="m">${running ? '<span class="runtag"><i></i>进行中</span><span>·</span>' : ''}${ccTag(s)}<span>${rel(s.mtime)}</span><span>·</span><span>${(s.size/1024/1024).toFixed(1)}MB</span>${s.tok ? `<span>·</span><span class="toktag" title="点击看逐轮消耗明细" onclick="showTimeline('${s.sid}', event)">${fmtTok(s.tok)} tok</span>` : ''}<span>·</span><span>${s.sid.slice(0,8)}</span></div>
+        <div class="m">${running ? '<span class="runtag"><i></i>进行中</span><span>·</span>' : ''}${ccTag(s)}<span>${rel(s.mtime)}</span><span>·</span><span>${(s.size/1024/1024).toFixed(1)}MB</span>${s.tok ? `<span>·</span><span class="toktag" title="点击看逐轮消耗明细" onclick="showTimeline('${s.sid}', event)">${fmtTok(s.tok)} tok</span>` : ''}<span>·</span><span class="sidcopy" title="点一下复制「会话名 + 完整会话号 + 记录文件路径」,粘给别的会话,它就知道你说的是哪个" onclick="copySid('${s.sid}', event)">${s.sid.slice(0,8)}</span></div>
       </div>
       <span class="rn" title="改标题" onclick="event.stopPropagation();renameSess('${s.sid}')">${ico('pen','sm')}</span>
       <span class="del" title="移入回收站" onclick="event.stopPropagation();delSess('${s.sid}')">${ico('trash','sm')}</span>
@@ -2405,6 +2290,8 @@ function renderSessions(focusSid) {
 // 会话卡上那个「@名字」:别的 Claude 会话 @ 它用的就是这个名字。
 // 和总控台的备注名不一样时标成橙色,点一下把总控台的名字推过去(前提是终端开着)。
 let ccSess = {};        // sessionId -> { name, nameSource, status, ... },见下面 refreshCcSess
+let ccTabSig = '';      // 上次画标签栏时各标签的 @名字,没变就不重画
+let termCc = {};        // 还没认出会话号的新标签 id -> { sid, name }(主进程按 Claude Code 登记对出来的,标签上先显示默认编号)
 function ccTag(s) {
   const c = ccSess[s.sid];
   if (!c || !c.name) return '';
@@ -2414,6 +2301,26 @@ function ccTag(s) {
      (termTabs.some(t => t.sid === s.sid) ? ' —— 点一下改成跟这里一样' : ' —— 终端开着才能同步'));
   return `<span class="cctag${same ? '' : ' diff'}" title="${escAttr(tip)}" onclick="ccNameClick('${s.sid}', event)">@${esc(c.name)}</span><span>·</span>`;
 }
+// <sid-copy>
+// 复制「会话名 + 会话号 + 记录文件路径」,粘给别的会话(2026-11-20 三月:「我给别的会话说某个会话名,他们都不认识,还得截图」)。
+// 别的会话拿到会话号就能直接读那个会话的记录文件,知道它聊过什么、做到哪;拿到 @名字 能直接给它发消息
+function sidCopyText(sid, title, ccName, jsonl) {
+  return '会话「' + (title || sid.slice(0, 8)) + '」(' + (ccName ? '别的会话喊它 @' + ccName + ',' : '') + '会话号 ' + sid + (jsonl ? ',记录文件 ' + jsonl : '') + ')';
+}
+function copySid(sid, ev, tabId) {
+  if (ev) ev.stopPropagation();
+  if (!sid) return;
+  const s = (curSess || []).find(x => x.sid === sid);
+  const t = (tabId && termTabs.find(x => x.id === tabId)) || termTabs.find(x => x.sid === sid);   // 新标签的号来自 termCc,按标签 id 找
+  const projPath = (t && t.projPath) || curPath;
+  const pj = projects.find(p => p.path === projPath);
+  const jsonl = HOMEC && pj && pj.sessSlug ? HOMEC + '\\projects\\' + pj.sessSlug + '\\' + sid + '.jsonl' : '';
+  const title = (s && s.title) || (t && t.title) || '';
+  const cc = (ccSess[sid] && ccSess[sid].name) || (t && termCc[t.id] && termCc[t.id].name) || '';
+  const text = sidCopyText(sid, title, cc, jsonl);
+  navigator.clipboard.writeText(text).then(() => hubToast('已复制:' + text.slice(0, 60) + (text.length > 60 ? '…' : '')), () => hubToast('复制失败'));
+}
+// </sid-copy>
 function clickSess(sid) { clearUnreadSid(sid); setLastSess(curPath, sid); curSid = sid; markSessSel(); }
 // 只切 class,不重绘整列 —— 不丢滚动位置
 function markSessSel() {
@@ -2669,21 +2576,27 @@ async function rnCommit(inp, sid) {
 // 官方改名入口是 /rename(别名 /name,带 [name] 参数),所以这里就往那个会话的终端里
 // 灌一条 /rename —— 走官方路子,落盘和广播都由 Claude Code 自己负责,不去硬改它的文件。
 // 先发 Ctrl+U 清掉输入框里可能有的半截内容,否则会和命令粘在一起发出去。
+// 把总控的名字同步给 Claude Code:不再直接 Ctrl+U + /rename(会删掉半截草稿、弹着权限确认时回车会直接批准)。
+// 改成交给主进程记成「待同步」,走和自动同步同一道闸:空闲、没人打字、核过进程、输入框是空的才打(2026-11-19 复核)
 function syncCcName(sid, name) {
-  const t = termTabs.find(x => x.sid === sid);
-  if (!t) return false;              // 终端没开着就没地方灌,卡片上会提示他
-  try {
-    hub.termInput(t.id, '\x15');
-    hub.termInput(t.id, '/rename ' + name + '\r');
-    if (ccSess[sid]) { ccSess[sid].name = name; ccSess[sid].nameSource = 'user'; }
-    hubToast('已同步给 Claude:别的会话现在喊它「' + name + '」');
-    setTimeout(refreshCcSess, 2500);  // 等它落盘再拉一次,显示以实际为准
-    return true;
-  } catch { return false; }
+  if (!hub.ccWant) return false;
+  hub.ccWant(sid, name);
+  hubToast(termTabs.some(x => x.sid === sid)
+    ? '会在这个会话空闲、输入框是空的时候同步给 Claude:别的会话会喊它「' + name + '」'
+    : '下次在总控里打开这个会话时会带上这个名字,别的会话就能喊它「' + name + '」');
+  return true;
 }
 async function refreshCcSess() {
   try { ccSess = await hub.ccSessions() || {}; } catch { ccSess = {}; }
+  try { termCc = (hub.termCcNames && await hub.termCcNames()) || {}; } catch { termCc = {}; }
   renderSessions();
+  // 标签上也显示 @名字。正在双击改标签名 / 拖着排序时别重画,不然输入框和拖拽会被打断
+  // 只在 @名字真变了时才重画(以前标签栏只在有变化时重画,无条件每 20 秒重画会打掉悬停提示、吞掉双击的第二下)
+  const sig = termTabs.map(t => t.id + ':' + (t.sid || '') + '=' + ((t.sid && ccSess[t.sid] && ccSess[t.sid].name) || (!t.sid && termCc[t.id] && termCc[t.id].name) || '')).join('|');
+  if (sig !== ccTabSig && !document.querySelector('#termTabs input.trn') && !dnd) {
+    ccTabSig = sig; renderTermTabs();
+    if (leftTab === 'act') renderProjects();   // 左边「进行中」那一栏也带着 @名字和会话号
+  }
 }
 // 卡片上那个 @名字 被点:把总控台的名字推过去
 function ccNameClick(sid, ev) {
@@ -2718,7 +2631,9 @@ async function bindNewSid(tabId, projPath, before) {
     if (!t || t.sid) return;
     let now = [];
     try { now = await hub.sessions(p.sessSlug, p.mainSession, p.path); } catch { continue; }
-    const fresh = now.filter(x => !before.has(x.sid)).sort((x, y) => y.mtime - x.mtime);
+    // 已经被别的标签认走的会话号不要:同一个项目里差不多同时开两个新会话时,先出记录的那个会被两个标签都认上
+    // (2026-11-19 实测;认错了自动改名会往错的终端里打 /rename)
+    const fresh = now.filter(x => !before.has(x.sid) && !termTabs.some(o => o.id !== tabId && o.sid === x.sid)).sort((x, y) => y.mtime - x.mtime);
     if (fresh.length) { t.sid = fresh[0].sid; hub.termBindSid && hub.termBindSid(t.id, t.sid); saveOpenTabs(); renderSessions(); refreshCtx(); return; }   // 刚绑上就刷,别等 15 秒 tick
   }
 }
@@ -3087,6 +3002,15 @@ function termLinkProvider(term) {
         //    但"行是满的"不等于"末格不是真空格" —— 正好写到最后一列的那个字符本身就是空格时,
         //    老行末格是【真实内容】。按 ch 剪会把它一起剪掉,带空格的路径在换行处就断了。
         while (rowCells.length && rowCells[rowCells.length - 1].blank) rowCells.pop();
+        // Windows 控制台(ConPTY):汉字这种宽字符排到行尾只剩一格放不下时,会在最后一格补一个【真】空格、
+        // 把字挪到下一行(2026-11-19 实测 PowerShell 输出)。不扔掉的话「…\测试 视频.mp4」在空格处断开,
+        // 整条路径既点不了也上不了色。只认这一种形状:最后一列的空格 + 下一行是续行且开头是宽字符。
+        if (row < end && rowCells.length) {
+          const lastc = rowCells[rowCells.length - 1];
+          const nx = buf.getLine(row);                 // 0 基 = 下一行
+          const first = nx && nx.getCell(0);
+          if (lastc.ch === ' ' && lastc.w === 1 && lastc.x === cols && first && first.getWidth && first.getWidth() === 2) rowCells.pop();
+        }
         for (const c of rowCells) {
           const ci = chars.length;
           chars.push(c);
@@ -3113,10 +3037,11 @@ function termLinkProvider(term) {
         const links = [];
         const taken = [];      // 已占用的字符区间,防止引号形式和裸匹配叠在一起
         for (const h of hits) {
-          let t;
+          let t, isDir = false;
           if (h.kind === 'url') t = cleanUrlTail(h.raw);
           else {
             const r = await resolvePath(h.raw);
+            isDir = !!r.isDir;
             // 磁盘上查不到 = 根本不知道右边界在哪。这时候还划,就是拿 guess 瞎猜边界:
             // 末段没有扩展名时,后面跟的中文说明会被整段圈进下划线;而且点了也只会
             // 弹一句「路径不存在」,白划。查不到就不划 —— 每一条下划线都是问过磁盘的。
@@ -3136,7 +3061,11 @@ function termLinkProvider(term) {
           links.push({
             range: { start: { x: a.x, y: a.y }, end: { x: b.x + (b.w > 1 ? b.w - 1 : 0), y: b.y } },
             text: t,
+            isDir,          // 给上色用(<link-color>):目录染另一种颜色,不用再问一次磁盘
             decorations: { pointerCursor: true, underline: true },
+            // 路径停一下会弹小工具条(打开所在文件夹 / 拖到微信),碰 DOM 的部分在标记外的 pathBarShow
+            hover: h.kind === 'path' ? (ev, s) => pathBarShow(ev, s) : undefined,
+            leave: h.kind === 'path' ? () => pathBarHide() : undefined,
             activate: (ev, s) => {
               ev.preventDefault();
               // 在链接里拖着选几个字,松手时 xterm 照样会调 activate —— 它只比对按下和松开的
@@ -3171,6 +3100,395 @@ async function openTermLink(raw) {
   }
   hubToast('路径不存在:' + r.path.slice(-48));
 }
+
+// <cc-send>
+// 往 Claude Code 的输入框里打一句话并发送。⚠️ 文字和回车要分开发:长文字连着 \r 一次写进 pty,Claude 当成一次粘贴,
+// 里面的回车只算换行、不算发送(2026-11-21 真跑「交接并清空」实测:提示停在输入框里没发出去)。短的 /rename 一次写也行,但统一分开。
+// 返回 true = 发完以后输入框空了(Claude 收到了);false = 等了几秒输入框里还有字(没发出去)
+async function ccSend(t, text) {
+  hub.termInput(t.id, text);
+  await new Promise(r => setTimeout(r, 300));
+  hub.termInput(t.id, '\r');
+  for (let i = 0; i < 16; i++) {
+    await new Promise(r => setTimeout(r, 500));
+    if (ccInputState(t.term) !== 'text') return true;
+  }
+  return false;
+}
+// </cc-send>
+
+// <handoff-clear>
+// 「交接并清空」(2026-11-20 三月:「一个会话,写好交接文档,然后 clear,再读交接文档」;官方 best-practices 也推荐这么做,
+// 模型在自动压缩那一刻最容易丢东西)。同一个会话里做完三步,名字不变,别的会话照样找得到:
+//   ① 让 Claude 把工作写成交接文件(路径总控定好:项目目录\交接_日期_时分_清空前.md)
+//   ② 等它写完(文件是这次新写的 + 会话空闲 + 输入框空)→ 输入 /clear
+//   ③ 等会话号真的换了(主进程从 Claude Code 登记里看出来,见 main.js <cc-follow-sid>)→ 让新的上下文先读交接
+// 2026-11-21 发版前复核后改的:
+//   · 等 Claude 写交接期间【不】拿「人按了键」当停止条件 —— 切窗口回来的焦点上报、点终端看进度、批准写文件的权限确认
+//     都会经过 onData,以前一按就停,没开免确认的人永远走不完。现在每一步打字前只看:输入框空 + 空闲(+ 文件是新写的);
+//     不满足就接着等,人想中止就再点一下按钮(按钮这时是「■ 停止交接」)。
+//   · /clear 之后要等会话号真的变了才打第③句;等不到(/clear 没执行、被补全成别的命令)就停下,不往旧上下文里塞话。
+//   · Claude 已经停下、输入框也空了,文件却连着几次没出现 → 它没在约定路径写,直接停下提示,不白等 20 分钟。
+//   · 点第一下记住是哪个标签,换了标签再点不算确认;终端进程已经结束的标签不开始;还没认出会话号的标签不开始。
+let hoArm = null, hoRun = null;
+function hoPad(n) { return String(n).padStart(2, '0'); }
+function hoPath(projPath) {
+  const d = new Date();
+  const stamp = d.getFullYear() + '-' + hoPad(d.getMonth() + 1) + '-' + hoPad(d.getDate()) + '_' + hoPad(d.getHours()) + hoPad(d.getMinutes());
+  return String(projPath).replace(/[\\/]+$/, '') + '\\交接_' + stamp + '_清空前.md';
+}
+function hoBtn(text) { const b = document.getElementById('hoBtn'); if (b) b.textContent = text; }
+async function handoffClear() {
+  if (hoRun) { hoRun.stop = true; hoRun = null; hoBtn('🧾 交接并清空'); hubToast('已停止交接并清空'); return; }
+  const t = termTabs.find(x => x.id === activeTerm);
+  if (!t || !t.claude) { hubToast('先切到一个 Claude 会话的标签'); return; }
+  if (t.exited) { hubToast('这个标签里的会话进程已经结束了'); return; }
+  if (!t.sid) { hubToast('这个会话还没认出会话号(新会话发第一句话之后才有),先聊一句再用'); return; }
+  const inSt = ccInputState(t.term);
+  if (inSt === 'text') { hubToast('这个会话的输入框里有字 —— 清空输入框再点'); return; }
+  if (inSt !== 'empty') { hubToast('认不出这个会话的输入框(Claude 在弹菜单 / 确认框,或者界面变了)—— 等 Claude 停在输入框再点'); return; }
+  const st = ccSess[t.sid] && ccSess[t.sid].status;
+  if (st && st !== 'idle') { hubToast('Claude 还在忙(' + st + '),等它停下来再点'); return; }
+  if (!hoArm || hoArm.id !== t.id || Date.now() - hoArm.at > 4000) {
+    hoArm = { id: t.id, at: Date.now() };
+    hoBtn('再点一次确认');
+    setTimeout(() => { if (!hoRun) hoBtn('🧾 交接并清空'); }, 4000);
+    return;
+  }
+  hoArm = null;
+  const run = hoRun = { stop: false, id: t.id, start: Date.now(), path: hoPath(t.projPath), sid0: t.sid };
+  hoBtn('■ 停止交接');
+  const alive = () => !run.stop && !t.exited && termTabs.some(x => x.id === run.id);
+  const wait = (ms) => new Promise(r => setTimeout(r, ms));
+  const idle = async () => {
+    try { ccSess = await hub.ccSessions() || ccSess; } catch {}
+    const s2 = t.sid && ccSess[t.sid] && ccSess[t.sid].status;
+    return !s2 || s2 === 'idle';
+  };
+  const finish = (msg) => { if (hoRun === run) hoRun = null; hoBtn('🧾 交接并清空'); hubToast(msg); };
+  try {
+    // ① 写交接
+    const sent1 = await ccSend(t, '请把这次会话的工作写成一份交接文件,存到 ' + run.path +
+      ' 。写清楚:现状、做到哪一步、没做完的、怎么验证、踩过的坑记在哪、下一步做什么,让一个什么都不知道的新上下文读完就能接着干。写完只回复一句「交接已写好」,别做别的。');
+    if (!sent1) return finish('「写交接」那句没发出去(还停在输入框里),已停下;可以自己按回车发出去');
+    hubToast('① 正在让 Claude 写交接…(要中止就再点一下按钮)');
+    let ok = false, stoppedNoFile = 0;
+    for (let i = 0; i < 400 && alive(); i++) {          // 最多等 20 分钟
+      await wait(3000);
+      if (!alive()) break;
+      let f = null;
+      try { f = await hub.pathInfo(run.path); } catch {}
+      const fresh = !!(f && f.exists && (f.mtimeMs || 0) >= run.start - 2000);
+      const quiet = i >= 2 && await idle() && ccInputEmpty(t.term);   // 头几秒 Claude 还没开始动,别误判成「停下了」
+      if (fresh && quiet) { ok = true; break; }
+      if (quiet && !fresh) { if (++stoppedNoFile >= 3) return finish('Claude 已经停下了,但没在约定的位置写交接文件(' + run.path + '),没有清空;看看它写到哪了'); }
+      else stoppedNoFile = 0;
+    }
+    if (!ok) return finish(alive() ? '等了 20 分钟交接文件还没写好,已停下;可以在会话里自己看看' : '交接并清空已停下(点了停止 / 标签关了 / 会话进程结束了)');
+    // ② /clear:打字前再核一遍
+    await wait(1500);
+    if (!alive()) return finish('交接写好了,但点了停止 / 标签关了,所以没有清空;交接文件在 ' + run.path);
+    if (!ccInputEmpty(t.term) || !(await idle())) return finish('交接写好了,但输入框里有字或 Claude 又忙起来了,没有清空;交接文件在 ' + run.path);
+    if (!(await ccSend(t, '/clear'))) return finish('「/clear」没发出去(还停在输入框里),已停下;交接文件在 ' + run.path);
+    hubToast('② 交接写好了,正在清空…');
+    // ③ 等会话号真的换了(/clear 生效的证据),输入框也空着,才让新上下文读交接
+    let changed = false;
+    for (let i = 0; i < 30 && alive(); i++) { await wait(1000); if (t.sid && t.sid !== run.sid0 && ccInputEmpty(t.term)) { changed = true; break; } }
+    if (!changed || !alive()) return finish('打了 /clear,但没看到会话真的清空(会话号没变),为了不往旧上下文里塞话就停在这了;交接文件在 ' + run.path);
+    await wait(800);
+    if (!ccInputEmpty(t.term)) return finish('已清空,但输入框里有字了,没发「读交接」;交接文件在 ' + run.path);
+    if (!(await ccSend(t, '先读交接文件 ' + run.path + ' ,读完按里面写的接着做;有拿不准的先问我。'))) return finish('已清空,但「先读交接」那句没发出去(还停在输入框里),自己按回车就行;交接文件在 ' + run.path);
+    finish('③ 已清空,新的上下文正在读交接(会话名字没变)');
+  } catch (e) { finish('交接并清空出错了:' + e); }
+}
+// </handoff-clear>
+
+// <term-auto-reply>
+// 终端自己回给程序的话(焦点进出 ESC[I/O、鼠标上报、设备属性 / 光标位置 / 颜色等查询应答),和人按键走同一条 onData。
+// 判断「人刚按过键」时要排除,不然切窗口回来、点一下终端都算按键(2026-11-21 发版前复核)。和 lib/ccname.js 的 isAutoReply 同一套正则
+const TERM_AUTO_REPLY = /^(?:\x1b\[\?[\d;]*c|\x1b\[>[\d;]*c|\x1b\[\d+;\d+R|\x1b\[\d*n|\x1b\[[IO]|\x1b\[\?[\d;]*\$y|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1bP[^\x1b]*\x1b\\|\x1b\[<[\d;]*[Mm])+$/;
+function isTermAutoReply(d) { const s = String(d || ''); return !!s && TERM_AUTO_REPLY.test(s); }
+// </term-auto-reply>
+
+// <cc-input-empty>
+// Claude Code 的输入框是不是空的(自动 /rename 之前的最后一道闸,2026-11-19)。
+// 只靠「最后一下按的是回车」不够:Claude 忙时先打了半句草稿、接着弹权限确认按回车批准,最后一下是回车、草稿还在框里。
+// 所以直接看画面(实测 Claude Code 2.1.327 + Win11):输入框夹在两条整行的 ─ 横线中间,第一格是 ❯;
+// 空的时候后面是暗色(dim)的占位提示「Try "…"」,打了字就是正常亮度的字(光标移回开头也一样)。
+// 规则:横线之间除了开头的 ❯ 和空白,全是暗色字才算空。认不出这个结构(全屏模式、改版、别的程序)一律当「不空」,不打字。
+// 2026-11-21 三月实测:他那边聊过的会话输入框开头是 >,不是 ❯(新开的、带占位提示的是 ❯)—— 两种都认。
+// ccInputState 分三种:empty 空的 / text 有字 / unknown 认不出输入框(提示里分开说,好查)
+function ccInputEmpty(term) { return ccInputState(term) === 'empty'; }
+function ccInputState(term) {
+  try {
+    const b = term.buffer.active;
+    if (b.type !== 'normal') return 'unknown';
+    // 横线行:开头或结尾是一长串 ─。会话起了名以后 Claude 会把名字画在横线上(「──── 总控同步测试 ──」,2026-11-19 实测),
+    // 只认整行纯横线的话改过一次名就再也认不出输入框了
+    const isRule = (y) => { const l = b.getLine(y); const s = l ? l.translateToString(true).trim() : ''; return /^─{10,}/.test(s) || /─{10,}$/.test(s); };
+    const lo = Math.max(0, b.length - 30);
+    let bot = -1, top = -1;
+    for (let y = b.length - 1; y >= lo; y--) if (isRule(y)) { bot = y; break; }
+    if (bot < 0) return 'unknown';
+    for (let y = bot - 1; y >= Math.max(lo, bot - 15); y--) if (isRule(y)) { top = y; break; }
+    if (top < 0 || bot - top < 2) return 'unknown';
+    let prompt = false;
+    for (let y = top + 1; y < bot; y++) {
+      const l = b.getLine(y);
+      if (!l) return 'unknown';
+      for (let x = 0; x < term.cols; x++) {
+        const c = l.getCell(x);
+        if (!c) continue;
+        const ch = c.getChars();
+        if (!ch || /^\s+$/.test(ch)) continue;            // 空白、不换行空格
+        if (!prompt && y === top + 1 && (ch === '❯' || ch === '>')) { prompt = true; continue; }
+        if (!prompt) return 'unknown';                   // 横线之间第一样东西不是提示符:不是输入框(菜单、确认框…)
+        if (ch === '[') return 'text';                   // [Pasted text #1 …] / [Image #1]:实测是正常亮度,这里再保险一道
+        if (!c.isDim()) return 'text';                   // 有一个正常亮度的字 = 框里有东西
+      }
+    }
+    return prompt ? 'empty' : 'unknown';
+  } catch { return 'unknown'; }
+}
+// </cc-input-empty>
+
+// <path-bar>
+// 鼠标停在终端里的路径上:旁边弹一条小工具条 —— 打开 / 打开所在文件夹 / 拖到微信(2026-11-19 三月要的)。
+// · 停 250ms 才弹,鼠标只是扫过去不弹;离开路径 350ms 内移到工具条上就不收。
+// · 「拖到微信」只对不是目录的路径出现:按住拖,走主进程 startDrag,和从资源管理器拖出去一样,
+//   微信 / QQ / 桌面 / 文件夹都认(主进程拖之前再核一遍是不是普通文件)。
+// · 滚动、敲键盘、窗口失焦、改大小、切 / 关标签都收起来;鼠标既不在终端也不在工具条上也收
+//   (终端被关掉时 xterm 不会发 leave,不兜这一下工具条会卡在原地)。
+// 2026-11-19 子代理复核后改的:
+// · Claude 正在刷新的区域里,xterm 每次重绘都会先 leave 再 hover 同一条路径 —— 不能每次都重新计时,
+//   否则刷新比 250ms 快时工具条永远弹不出来。所以 leave 只记「鼠标走了」,同一条路径再 hover 接着原来的计时。
+// · 点按钮不抢焦点(mousedown 里 preventDefault),点完把焦点还给当前终端,接着打字不丢字。
+// · 拖出去又落回终端时,终端的 drop 会把路径填进输入框 —— 认出是自己拖出去的就不填(pathBarOwnDrop)。
+let pbEl = null, pbPath = '', pbHideT = null, pbShowT = null, pbSeq = 0;
+let pbWant = '', pbOnLink = false, pbX = 0, pbY = 0, pbDrag = null, pbHidePending = false;
+function pathBarFocusTerm() {
+  const t = (typeof termTabs !== 'undefined') && termTabs.find(x => x.id === activeTerm);
+  if (t && t.term) { try { t.term.focus(); } catch {} }
+}
+function pathBarEl() {
+  if (pbEl) return pbEl;
+  pbEl = document.createElement('div');
+  pbEl.className = 'pathbar';
+  pbEl.innerHTML = '<button data-a="open">打开</button><button data-a="dir">打开所在文件夹</button>'
+    + '<span class="pbdrag" draggable="true" title="按住它拖到微信 / QQ 聊天框或文件夹里,松手就发过去">⠿ 拖到微信</span>';
+  pbEl.addEventListener('mouseenter', () => { clearTimeout(pbHideT); pbHidePending = false; });
+  pbEl.addEventListener('mouseleave', () => { if (!pbDrag) pathBarHide(); });
+  pbEl.addEventListener('mousedown', (e) => { if (e.target.closest('button')) e.preventDefault(); });   // 不抢终端的焦点
+  pbEl.addEventListener('click', async (e) => {
+    const b = e.target.closest('button[data-a]');
+    if (!b || !pbPath) return;
+    const p = pbPath;
+    pathBarHide(true);
+    pathBarFocusTerm();
+    if (b.dataset.a === 'open') openTermLink(p);
+    else {
+      const ok = hub.showInFolder ? await hub.showInFolder(p).catch(() => false) : false;
+      hubToast(ok ? '已打开所在文件夹:' + (p.split(/[\\/]/).slice(-2, -1)[0] || p) : '路径不存在:' + p.slice(-48));
+    }
+  });
+  pbEl.querySelector('.pbdrag').addEventListener('dragstart', (e) => {
+    e.preventDefault();                       // 浏览器自己的拖拽不要,交给主进程拖真文件
+    if (!pbPath || !hub.dragFile) return;
+    pbDrag = { path: pbPath, at: Date.now() };
+    hub.dragFile(pbPath);
+    // 拖拽期间工具条不收(收了的话松手落回去就落在终端上);拖完后鼠标再动一下才收,见下面的 mousemove
+  });
+  document.body.appendChild(pbEl);
+  const close = () => pathBarHide(true);
+  document.addEventListener('wheel', close, { capture: true, passive: true });
+  document.addEventListener('keydown', close, true);      // 只收工具条,不拦键
+  window.addEventListener('blur', () => { if (!pbDrag) close(); });
+  window.addEventListener('resize', close);
+  // 拖进微信后切回总控:拖拽早就结束了(系统拖拽期间不发 mousemove,没机会清),这里清掉,免得一分钟内误吞外面拖进来的同一个文件
+  window.addEventListener('focus', () => { if (pbDrag && Date.now() - pbDrag.at > 200) { pbDrag = null; pathBarHide(true); } });
+  document.addEventListener('mousemove', (e) => {
+    if (pbDrag) {                              // 拖完了(按键都松开了):收起
+      if (e.buttons === 0 && Date.now() - pbDrag.at > 200) { pbDrag = null; pathBarHide(true); pathBarFocusTerm(); }   // 落回终端的 drop 早于这一下,已经认过了
+      return;
+    }
+    if (!pbEl.classList.contains('on') && !pbShowT) return;
+    const t = e.target;
+    if (t && t.closest && (t.closest('.pathbar') || t.closest('.xterm'))) return;
+    // 也给 350ms:从路径挪到工具条的路上会经过标签栏这些地方。已经在倒计时就别重新计
+    if (!pbHidePending) pathBarHide();
+  }, true);
+  return pbEl;
+}
+function pathBarShow(ev, p) {
+  clearTimeout(pbHideT); pbHidePending = false;
+  pbOnLink = true; pbX = ev.clientX; pbY = ev.clientY;
+  if (pbEl && pbEl.classList.contains('on') && pbPath === p) return;   // 已经在显示这一条
+  if (pbWant === p && pbShowT) return;                                 // 同一条重绘了一下,接着原来的计时
+  clearTimeout(pbShowT);
+  pbWant = p;
+  const seq = ++pbSeq;
+  pbShowT = setTimeout(async () => {
+    pbShowT = null;
+    if (!pbOnLink || seq !== pbSeq) return;     // 计时期间鼠标已经离开 / 换到别的路径上了
+    let r;
+    try { r = await resolvePath(p); } catch { return; }
+    if (seq !== pbSeq || !pbOnLink || !r || !r.exists) return;
+    const el = pathBarEl();
+    pbPath = r.path;
+    const canDrag = !!(!r.isDir && hub.dragFile);   // resolvePath 只记了 isDir;是不是普通文件主进程拖之前再核一遍
+    el.querySelector('.pbdrag').style.display = canDrag ? '' : 'none';
+    if (canDrag && hub.prepDrag) hub.prepDrag(r.path).catch(() => {});   // 先把图标取好,真拖时不用等
+    el.classList.add('on');
+    const w = el.offsetWidth, h = el.offsetHeight;
+    el.style.left = Math.max(8, Math.min(pbX - 20, window.innerWidth - w - 8)) + 'px';
+    el.style.top = (pbY - h - 14 >= 8 ? pbY - h - 14 : pbY + 18) + 'px';
+  }, 250);
+}
+// now:立刻收;否则给 350ms,让鼠标从路径挪到工具条上
+function pathBarHide(now) {
+  pbOnLink = false;
+  clearTimeout(pbHideT); pbHidePending = false;
+  const done = () => {
+    pbHidePending = false;
+    clearTimeout(pbShowT); pbShowT = null;
+    pbSeq++; pbWant = ''; pbPath = '';
+    if (pbEl) pbEl.classList.remove('on');
+  };
+  if (now) { done(); return; }
+  pbHidePending = true;
+  pbHideT = setTimeout(done, 350);
+}
+// 终端 drop 时问一下:是不是工具条刚拖出去的那个文件落回来了(一分钟内、同一个文件)。是就吞掉
+function pathBarOwnDrop(paths) {
+  const d = pbDrag;
+  pbDrag = null;
+  if (d) { pathBarHide(true); pathBarFocusTerm(); }   // 拖拽期间落下 = 拖完了;按住把手时终端丢了焦点,还回去
+  if (!d || !Array.isArray(paths) || paths.length !== 1) return false;
+  if (Date.now() - d.at > 60000) return false;
+  return String(paths[0]).toLowerCase() === String(d.path).toLowerCase();
+}
+// </path-bar>
+
+// <link-color>
+// 终端里能点的路径 / 网址常驻上色,按类型分(2026-11-19 三月要的:「所有的链接路径,视频之类的标个颜色」)。
+// · 认链接用的就是 termLinkProvider 那一份(同一套正则、同一套问磁盘定边界):有颜色 = 能点,不另起一套口径。
+//   链接对象带着 isDir(识别时问磁盘顺手拿到的),这里不再问一次。
+// · 上色走 xterm 的 registerDecoration(foregroundColor),挂在 marker 上,跟着行滚动;行被挤出回滚区时 xterm 自己回收。
+// · 每次终端刷新后 250ms 扫一遍当前看得见的行;某行文字变了(Claude Code 重画了这一行)就把这行旧颜色撤掉重算。
+//   有路径样子但一条链接都没有的行也记一笔(空的),光标一闪一刷新时不用反复白扫。
+// 子代理复核查出来的两个坑(2026-11-19,都已修):
+// ① xterm 找颜色只按行号,不分普通 / 备用缓冲区 —— 全屏程序(Claude Code 全屏、vim、less)一上来,
+//    普通缓冲区头几行的颜色会原样印到全屏画面同一位置。所以一切到备用缓冲区就把颜色全撤掉,切回来重扫。
+// ② 扫描中途要等磁盘(IPC),这期间终端还在写;回滚区满了(默认 1000 行)每来一行所有行号整体上移。
+//    不能拿扫描开头记下的行号对条目:每次等完都现场按 marker.line 重找;行号整体挪了就放弃这一轮重扫;
+//    同一行冒出两套就撤掉多的。
+const LINK_COLORS = { video: '#f5a524', image: '#d2a8ff', dir: '#56d4dd', file: '#79c0ff', url: '#79c0ff' };
+const LC_VIDEO = /\.(mp4|mov|mkv|webm|avi|m4v|flv|wmv|ts|m2ts|3gp|mpg|mpeg)$/i;
+const LC_IMAGE = /\.(png|jpe?g|gif|webp|bmp|svg|ico|tiff?|heic|avif)$/i;
+function linkKind(text, isDir) {
+  if (/^https?:\/\//i.test(text)) return 'url';
+  if (isDir) return 'dir';
+  if (LC_VIDEO.test(text)) return 'video';
+  if (LC_IMAGE.test(text)) return 'image';
+  return 'file';
+}
+function linkColorAttach(term, provider) {
+  const rows = new Map();     // marker → { text, decos }
+  let timer = null, busy = false, again = false, dead = false;
+  const buf = () => term.buffer.active;
+  const rowText = (y) => { const l = buf().getLine(y); return l ? l.translateToString(true) : ''; };
+  // 比对用的是整段折行(起点行到最后一个续行)的文字:一行里染哪几格还取决于前后续行,
+  // 只比本行的话,路径后半截打完 / 被重画时,头一行的颜色不会跟着变(第二轮复核查出来的)
+  const lineKey = (y) => {
+    const b = buf();
+    let s = y, e = y;
+    while (s > 0 && b.getLine(s) && b.getLine(s).isWrapped) s--;
+    while (b.getLine(e + 1) && b.getLine(e + 1).isWrapped) e++;
+    let k = (y - s) + '/';
+    for (let i = s; i <= e; i++) k += rowText(i) + '\u0001';
+    return k;
+  };
+  const dropEntry = (m, e) => { for (const d of e.decos) { try { d.dispose(); } catch {} } try { m.dispose(); } catch {} rows.delete(m); };
+  const dropAll = () => { for (const [m, e] of [...rows]) dropEntry(m, e); };
+  // 这一行现在挂着的条目(按 marker 当前的行号现场找);多于一套的撤掉多的,只留最新的
+  function entryAt(y) {
+    let keep = null;
+    for (const [m, e] of [...rows]) {
+      if (m.isDisposed || m.line < 0) { dropEntry(m, e); continue; }
+      if (m.line !== y) continue;
+      if (keep) dropEntry(keep[0], keep[1]);
+      keep = [m, e];
+    }
+    return keep;
+  }
+  async function scan() {
+    if (dead) return;
+    if (busy) { again = true; return; }
+    busy = true;
+    let sentinel = null;
+    try {
+      if (buf().type !== 'normal') { dropAll(); return; }   // 见上面 ①
+      // 行号整体有没有挪:回滚区满了以后 baseY、length 都不变,所有行照样往上挤,只看数字看不出来。
+      // 在光标行放一个哨兵 marker,它的 line 变了(或被挤掉了)= 整体挪过
+      sentinel = term.registerMarker(0);
+      const s0 = sentinel ? sentinel.line : -1;
+      const shifted = () => !sentinel || sentinel.isDisposed || sentinel.line !== s0 || buf().type !== 'normal';
+      const top = buf().viewportY, bottom = Math.min(buf().length - 1, top + term.rows - 1);
+      for (let y = top; y <= bottom; y++) {
+        if (dead) return;
+        const text = lineKey(y);
+        const had = entryAt(y);
+        if (had && had[1].text === text) continue;            // 这行没变,颜色还对
+        if (had) dropEntry(had[0], had[1]);
+        const line = buf().getLine(y), next = buf().getLine(y + 1);
+        // 这行既没有路径 / 网址的影子,也不是折行的一部分 → 不用问链接识别
+        if (!/[A-Za-z]:\\|https?:\/\//.test(text) && !(line && line.isWrapped) && !(next && next.isWrapped)) continue;
+        const links = await new Promise(res => { try { provider.provideLinks(y + 1, l => res(l || [])); } catch { res([]); } });
+        if (dead) return;
+        if (shifted()) { again = true; return; }      // 等的工夫行号挪了 / 切了缓冲区:这一轮作废重扫(见上面 ②)
+        if (lineKey(y) !== text) continue;                  // 这行又被重画了,下一轮再说
+        const segs = [];
+        for (const lk of links) {
+          const r = lk.range;
+          // 跨行的链接只取落在这一行(1 基行号 y+1)的那一段;range 的 x 是 1 基、end 含末格
+          if (r.start.y > y + 1 || r.end.y < y + 1) continue;
+          const x0 = r.start.y === y + 1 ? r.start.x - 1 : 0;
+          const x1 = r.end.y === y + 1 ? r.end.x : term.cols;
+          if (x1 <= x0) continue;
+          segs.push({ x: x0, width: x1 - x0, color: LINK_COLORS[linkKind(lk.text, !!lk.isDir)] });
+        }
+        const again2 = entryAt(y);                             // 再确认一次这一行没有别人挂过
+        if (again2) dropEntry(again2[0], again2[1]);
+        const b = buf();
+        const m = term.registerMarker(y - (b.baseY + b.cursorY));
+        if (!m) continue;
+        if (m.line !== y) { try { m.dispose(); } catch {} continue; }   // 行号算错了就别挂,宁可不上色
+        const decos = [];
+        for (const s of segs) {
+          const d = term.registerDecoration({ marker: m, x: s.x, width: s.width, foregroundColor: s.color, layer: 'top' });
+          if (d) decos.push(d);
+        }
+        rows.set(m, { text, decos });                          // 没有链接的行也记(decos 为空),下次不白扫
+      }
+    } catch {} finally {   // 终端关掉后最后一次计时还可能跑进来,别往外抛
+      if (sentinel) { try { sentinel.dispose(); } catch {} }
+      busy = false;
+      if (again && !dead) { again = false; schedule(); }
+    }
+  }
+  function schedule() {
+    if (dead || timer) return;
+    timer = setTimeout(() => { timer = null; scan(); }, 250);
+  }
+  const subs = [
+    term.onRender(schedule), term.onScroll(schedule),
+    // 切到备用缓冲区:颜色立刻全撤(不等 250ms,不然全屏界面头几行会闪一下颜色);切回来重扫
+    term.buffer.onBufferChange(() => { if (buf().type !== 'normal') dropAll(); schedule(); }),
+  ];
+  schedule();
+  return { scan, dispose() { dead = true; clearTimeout(timer); for (const s of subs) { try { s.dispose(); } catch {} } dropAll(); } };
+}
+// </link-color>
 
 // ---------- 没装 Claude Code 时的说明卡 ----------
 // 总控不带 Claude Code,开会话就是在终端里敲 claude。没装的电脑以前只会看到一屏 PowerShell 红字。
@@ -3260,666 +3578,14 @@ function claudeForceOpen() {
 }
 // </claude-gate>
 
-// ===== 左侧功能栏:切功能页 =====
-// 'sess' = 原来的项目/会话/终端那一整套(什么都不盖);其它值 = 盖一张全屏功能页上去。
-let curPage = 'sess';
-function setPage(pg) {
-  curPage = pg;
-  document.querySelectorAll('#navRail .navi').forEach(b => b.classList.toggle('on', b.dataset.page === pg));
-  document.getElementById('pageAgents').classList.toggle('on', pg === 'agents');
-  document.getElementById('pageCkpt').classList.toggle('on', pg === 'ckpt');
-  document.getElementById('pageMcp').classList.toggle('on', pg === 'mcp');
-  if (pg === 'agents') agOpen();
-  if (pg === 'ckpt') ckOpen();
-  if (pg === 'mcp') mcOpen();
-  if (pg === 'sess') {
-    // 回到会话页:终端可能在功能页盖着的时候换过尺寸,重新量一下
-    const t = termTabs.find(x => x.id === activeTerm);
-    if (t) setTimeout(() => { try { t.fit.fit(); } catch {} t.term.focus(); }, 30);
-  }
-}
-(() => {
-  const nav = document.querySelectorAll('#navRail .navi');
-  const def = { sess: ['terminal', '会话'], agents: ['bot', 'Agents'], ckpt: ['branch', '检查点'], mcp: ['plug', 'MCP'] };
-  nav.forEach(b => { const d = def[b.dataset.page]; if (d) b.innerHTML = ico(d[0]) + '<span>' + d[1] + '</span>'; });
-})();
-
-// ===== Agents 页 =====
-// 一条 Agent = 名称 + 说明 + 模型 + 追加的系统提示词 + 免确认的工具。存在 %APPDATA%\claude-hub\agents.json(lib/agents.js)。
-// 运行 = 主进程按 id 从磁盘取这一条、写好参数文件,这边拿回一行命令,在选中的项目里开一个内嵌终端标签。
-const AG_TOOLS = [
-  ['read', '读文件 / 搜索', 'Read · Grep · Glob'],
-  ['gitread', 'git 查看命令', 'git diff / log / status / show(不完全只读:带 --output= 能写文件)'],
-  ['write', '改文件', 'Edit · Write'],
-  ['bash', '任意命令', 'Bash(全部命令)']
-];
-let agList = [], agSel = null, agBroken = '', agDirty = false, agProj = null, agDelArm = 0;
-const agRunning = (id) => termTabs.filter(t => t.agentId === id);
-async function agLoad() {
-  let r = null;
-  try { r = await hub.agentsList(); } catch {}
-  agList = (r && r.list) || [];
-  agBroken = r && r.broken ? (r.msg || 'agents.json 读不懂') : '';
-  if (!agList.find(a => a.id === agSel)) agSel = agList[0] ? agList[0].id : null;
-}
-async function agOpen() {
-  if (!agDirty) await agLoad();
-  if (!agProj || !projects.find(p => p.path === agProj)) agProj = termProj || curPath || (projects[0] && projects[0].path) || null;
-  agRender();
-}
-function agRenderList() {
-  const el = document.getElementById('agList');
-  el.innerHTML = `
-    <div class="aghead"><b>Agents</b><button class="btn sm" onclick="agNew()">${ico('plus', 'sm')}新建</button></div>
-    ${agList.map(a => {
-      const run = agRunning(a.id).length;
-      const last = a.runs[0];
-      return `<div class="agrow${a.id === agSel ? ' sel' : ''}" onclick="agPick('${escAttr(escJs(a.id))}')">
-        <div class="n"><i class="agdot${run ? ' run' : ''}"></i><span>${esc(a.name)}</span>${run ? `<span class="agrun" style="flex:none">运行中${run > 1 ? ' ' + run : ''}</span>` : ''}</div>
-        <div class="m">${esc(a.desc || (a.model ? '模型 ' + a.model : '跟随默认模型'))}${last ? ' · ' + esc(fmtAgTime(last.at)) : ''}</div>
-      </div>`;
-    }).join('') || '<div class="agempty" style="padding:6px 4px">还没有 Agent,点右上「新建」。</div>'}
-    <div class="agnote">只存在本客户端的 agents.json,不改 Claude Code 自己的配置。运行时用官方参数 --append-system-prompt / --model / --allowedTools。</div>`;
-}
-function fmtAgTime(ts) {
-  const d = new Date(ts), now = new Date();
-  const hm = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
-  if (d.toDateString() === now.toDateString()) return '今天 ' + hm;
-  const y = new Date(now); y.setDate(now.getDate() - 1);
-  if (d.toDateString() === y.toDateString()) return '昨天 ' + hm;
-  return (d.getMonth() + 1) + '-' + d.getDate() + ' ' + hm;
-}
-function agRender() {
-  agRenderList();
-  const main = document.getElementById('agMain');
-  const a = agList.find(x => x.id === agSel);
-  const warn = agBroken ? `<div class="agwarn">${esc(agBroken)}<br>原来的文件不会被悄悄覆盖:下次保存时会先把它改名成 agents.json.broken-时间 留作备份。</div>` : '';
-  if (!a) {
-    main.innerHTML = warn + `<div class="agcard" style="max-width:560px"><b>Agent 是什么</b>
-      <div class="tmsg" style="line-height:1.8">把常用的一段要求(比如「只读审查当前分支」「给改过的函数补测试」)连同模型和免确认的工具存成一条,
-      以后在任意项目里点一下「运行」,就开一个带着这些设置的 Claude Code 会话。</div>
-      <div><button class="btn" onclick="agNew()">${ico('plus', 'sm')}新建第一个 Agent</button></div></div>`;
-    return;
-  }
-  const run = agRunning(a.id);
-  const projOpts = orderedProjects().map(p => `<option value="${escAttr(p.path)}"${p.path === agProj ? ' selected' : ''}>${esc(p.short || p.name || p.path)}</option>`).join('');
-  main.innerHTML = warn + `
-    <div class="agtop">
-      <div style="flex:1;min-width:200px"><h2>${esc(a.name)}</h2><div class="d">${esc(a.desc || '没写说明')}</div></div>
-      <label class="tmsg" style="display:flex;align-items:center;gap:6px">在项目<select id="agProjSel" onchange="agProj=this.value">${projOpts || '<option value="">(还没有项目)</option>'}</select></label>
-      <button class="btn" onclick="agRun()" ${projOpts ? '' : 'disabled'}>${ico('terminal', 'sm')}运行</button>
-    </div>
-    <div class="aggrid">
-      <div class="agcard">
-        <b>配置</b>
-        <label class="agf">名称<input type="text" id="agName" maxlength="60" value="${escAttr(a.name)}" oninput="agTouch()"></label>
-        <label class="agf">说明<input type="text" id="agDesc" maxlength="200" value="${escAttr(a.desc)}" placeholder="一句话说它干什么" oninput="agTouch()"></label>
-        <label class="agf">模型<input type="text" id="agModel" maxlength="80" value="${escAttr(a.model)}" placeholder="留空 = 跟随 Claude Code 当前设置(/model)" oninput="agTouch()">
-          <span class="hint">填 claude --model 认的名字(别名或完整模型名);不写死候选,和设置里去掉模型下拉是同一个道理。</span></label>
-        <label class="agf" style="flex:1">追加的系统提示词<textarea id="agPrompt" spellcheck="false" oninput="agTouch()" placeholder="例如:你是严格的代码审查员。对比当前分支和 main,只报真实问题,按严重程度排序,每条给出文件和行号。不要修改任何文件。">${esc(a.prompt)}</textarea>
-          <span class="hint">接在 Claude Code 默认系统提示词后面,项目的 CLAUDE.md 照常生效。</span></label>
-        <div class="agf">免确认的工具
-          <div class="agtools">${AG_TOOLS.map(([k, t, s]) => `<label><input type="checkbox" data-tool="${k}"${a.tools.includes(k) ? ' checked' : ''} onchange="agTouch()"><span>${esc(t)}<small>${esc(s)}</small></span></label>`).join('')}</div>
-          <span class="hint">勾上的不再逐次问你;没勾的照样会问,不是禁用。</span></div>
-        <div class="agacts">
-          <span class="tmsg" id="agMsg">${agDirty ? '有改动还没保存' : ''}</span>
-          <button class="btn ghost sm danger" id="agDelBtn" onclick="agDelete()">删除</button>
-          <button class="btn sm" onclick="agSave()">保存</button>
-        </div>
-      </div>
-      <div style="display:flex;flex-direction:column;gap:14px;min-height:0">
-        <div class="agcard">
-          <b>正在运行</b>
-          ${run.length ? `<table class="agtbl">${run.map(t => `<tr><td>${esc(t.title)}</td><td>${esc(t.projShort || '')}</td><td style="text-align:right"><button class="btn ghost sm" onclick="activateTerm('${escAttr(escJs(t.id))}')">切过去看</button></td></tr>`).join('')}</table>`
-            : '<div class="agempty">没有在跑的。运行后会在「会话」里多一个终端标签,输出都在那里。</div>'}
-        </div>
-        <div class="agcard">
-          <b>运行记录</b>
-          ${a.runs.length ? `<table class="agtbl">${a.runs.map(r => { const p = projects.find(x => x.path === r.proj); return `<tr><td>${esc(p ? (p.short || p.name) : (r.proj.split('\\').pop() || r.proj))}</td><td style="text-align:right">${esc(fmtAgTime(r.at))}</td></tr>`; }).join('')}</table>`
-            : '<div class="agempty">还没运行过。</div>'}
-        </div>
-      </div>
-    </div>`;
-}
-function agTouch() { agDirty = true; const m = document.getElementById('agMsg'); if (m) m.textContent = '有改动还没保存'; }
-// 把表单里的值收回到当前这条(只收用户能改的那几项)
-function agCollect() {
-  const a = agList.find(x => x.id === agSel);
-  if (!a || !document.getElementById('agName')) return;
-  a.name = document.getElementById('agName').value.trim() || a.name;
-  a.desc = document.getElementById('agDesc').value.trim();
-  a.model = document.getElementById('agModel').value.trim();
-  a.prompt = document.getElementById('agPrompt').value;
-  a.tools = [...document.querySelectorAll('#agMain [data-tool]')].filter(c => c.checked).map(c => c.dataset.tool);
-}
-async function agPersist() {
-  let r = null;
-  try { r = await hub.agentsSave(agList); } catch (e) { r = { ok: false, msg: String(e) }; }
-  if (!r || !r.ok) { hubToast('保存失败:' + ((r && r.msg) || '未知原因')); return false; }
-  agList = r.list; agBroken = ''; agDirty = false;
-  return true;
-}
-async function agSave() {
-  agCollect();
-  if (await agPersist()) { hubToast('已保存'); agRender(); }
-}
-function agPick(id) {
-  if (id === agSel) return;
-  agCollect();          // 切走前先把没保存的改动留在内存里,不丢
-  agSel = id; agDelArm = 0;
-  agRender();
-}
-async function agNew() {
-  agCollect();
-  const a = { id: 'a' + Date.now().toString(36), name: '新 Agent', desc: '', model: '', prompt: '', tools: ['read'], runs: [] };
-  agList.push(a); agSel = a.id;
-  if (await agPersist()) { agRender(); const n = document.getElementById('agName'); if (n) { n.focus(); n.select(); } }
-}
-async function agDelete() {
-  const btn = document.getElementById('agDelBtn');
-  // 点两下才删:第一下变成「再点一次确认」,3 秒内没点就复原
-  if (Date.now() - agDelArm > 3000) {
-    agDelArm = Date.now();
-    if (btn) btn.textContent = '再点一次确认删除';
-    setTimeout(() => { const b = document.getElementById('agDelBtn'); if (b && Date.now() - agDelArm >= 3000) b.textContent = '删除'; }, 3100);
-    return;
-  }
-  agDelArm = 0;
-  agCollect();
-  agList = agList.filter(x => x.id !== agSel);
-  agSel = agList[0] ? agList[0].id : null;
-  if (await agPersist()) { hubToast('已删除'); agRender(); }
-}
-async function agRun() {
-  const a = agList.find(x => x.id === agSel);
-  const pj = projects.find(p => p.path === agProj);
-  if (!a || !pj) { hubToast('先选一个项目'); return; }
-  // 跑的永远是磁盘上那一份:有没保存的改动先存
-  if (agDirty) { agCollect(); if (!(await agPersist())) return; }
-  let r = null;
-  try { r = await hub.agentsLaunch(a.id, pj.path); } catch (e) { r = { ok: false, msg: String(e) }; }
-  if (!r || !r.ok) { hubToast('没能启动:' + ((r && r.msg) || '未知原因')); return; }
-  const title = 'Agent · ' + a.name;
-  // 命令不是以 claude 开头的,openTerm 自己不会查装没装 —— 这里替它查;被拦下的话装好后照原样(带着 Agent 设置)开出来
-  if (!(await claudeReady({ projPath: pj.path, projShort: pj.short, title, cmdOverride: r.cmd }))) return;
-  const before = new Set(termTabs.map(t => t.id));
-  await openTerm(pj.path, pj.short, '', title, r.cmd, true);
-  const tab = termTabs.find(t => !before.has(t.id));
-  if (tab) { tab.agentId = a.id; renderTermTabs(); }
-  agLoad();             // 运行记录在主进程里记过了,后台刷一下,回到这页时就是新的
-}
-
-// ===== MCP 页 =====
-// 列表直接读配置文件(~/.claude.json 和项目的 .mcp.json,lib/mcp.js),马上就有;
-// 「连得上吗」跑官方 claude mcp list,要挨个连一遍,慢,单独异步填进来,超时/看不懂就是「未检测」。
-// 加、删都走官方 claude mcp add-json / remove —— ClaudeHub 不自己改这些文件。env / 请求头的值不进界面,只显示名字。
-const MC_SCOPE = {
-  local: ['仅本项目', '只在这台电脑的这个项目里生效,记在 ~/.claude.json'],
-  project: ['项目共享', '写进项目的 .mcp.json,跟着仓库给所有人用(别把密钥写进去)'],
-  user: ['全局', '这台电脑上所有项目都能用,记在 ~/.claude.json'],
-  connector: ['claude.ai 连接器', '在 claude.ai 网页的设置里管理,这里只看状态']
-};
-const MC_ST = { ok: '已连接', fail: '连接失败', pending: '待批准', auth: '要登录', disabled: '已停用', unknown: '未检测' };
-let mcProj = null, mcCfg = null, mcStatus = null, mcStatusSeq = 0, mcFilter = 'all', mcSel = null, mcSide = 'detail', mcRows = [];
-// <mc-sel>
-// 选中的那一行按「范围 + 名称」记,不按行号:重新读配置后行的顺序可能变,按行号「移除」会删错服务器
-const mcKey = (r) => r ? r.scope + '|' + r.name : null;
-const mcSelRow = () => mcSel === null ? null : (mcRows.find(r => mcKey(r) === mcSel) || null);
-// </mc-sel>
-let mcForm = { name: '', scope: 'local', type: 'stdio', command: '', args: '', env: '', url: '', headers: '', json: '' }, mcAddMode = 'form';
-let mcBusy = false, mcRes = '', mcDelArm = 0, mcDesk = null, mcDeskSel = new Set(), mcDeskScope = 'user';
-const mcPj = () => projects.find(p => p.path === mcProj);
-// 打开页面 / 换项目只读配置文件,不跑 claude mcp list:它会把每个服务器真的启动一遍,
-// 包括陌生仓库 .mcp.json 里没批准过的。连接状态只在用户点「检测连接」时才去查。
-async function mcOpen() {
-  if (!mcProj || !mcPj()) { mcProj = curPath || (projects[0] && projects[0].path) || null; mcStatus = null; }
-  await mcLoad();
-}
-async function mcLoad() {
-  try { mcCfg = await hub.mcpConfig(mcProj || ''); } catch (e) { mcCfg = { ok: false, msg: String(e) }; }
-  mcRender();
-}
-async function mcCheck() {
-  const seq = ++mcStatusSeq, proj = mcProj;
-  mcStatus = 'loading'; mcRender();
-  let r = null;
-  try { r = await hub.mcpStatus(proj || ''); } catch (e) { r = { ok: false, msg: String(e) }; }
-  if (seq !== mcStatusSeq || proj !== mcProj) return;          // 期间换了项目 / 又点了一次:这次的结果作废
-  mcStatus = r && r.ok ? r : { list: [], failed: (r && r.msg) || '检测失败' };
-  mcRender();
-}
-function mcPickProj(v) {
-  if (mcStatus === 'loading') { mcStatusSeq++; hub.mcpStatusCancel().catch(() => {}); }   // 上一个项目的检测不要了,连进程一起结束
-  mcProj = v; mcSel = null; mcStatus = null; mcLoad();
-}
-// 表格的一行:配置里的服务器 + 只在 claude mcp list 里出现的(claude.ai 连接器)
-function mcBuildRows() {
-  const st = mcStatus && mcStatus.list ? mcStatus.list : [];
-  const rows = ((mcCfg && mcCfg.servers) || []).map(s => {
-    const hit = st.find(x => x.name === s.name);
-    let status = hit ? hit.status : (mcStatus === 'loading' ? 'wait' : 'unknown');
-    if (!hit && s.scope === 'project' && s.approval === 'pending') status = 'pending';
-    if (!hit && s.scope === 'project' && s.approval === 'rejected') status = 'disabled';
-    return Object.assign({}, s, { status, statusText: hit ? hit.text : '' });
-  });
-  for (const x of st) if (!rows.some(r => r.name === x.name)) rows.push({ name: x.name, scope: 'connector', type: /^https?:/.test(x.target) ? 'http' : '', url: x.target, command: '', args: [], envKeys: [], headerKeys: [], status: x.status, statusText: x.text });
-  return rows;
-}
-const mcTarget = (s) => s.url || [s.command, ...(s.args || [])].filter(Boolean).join(' ');
-function mcStHtml(s) {
-  if (s.status === 'wait') return '<span class="mcst wait">检测中…</span>';
-  return `<span class="mcst ${s.status}" title="${escAttr(s.statusText || '')}"><i></i>${esc(MC_ST[s.status] || s.statusText || '未检测')}</span>`;
-}
-function mcRender() {
-  const main = document.getElementById('mcpMain');
-  if (!main) return;
-  const pj = mcPj();
-  mcRows = mcBuildRows();
-  const count = (k) => mcRows.filter(r => r.scope === k).length;
-  const chips = [['all', '全部', mcRows.length], ['local', '仅本项目', count('local')], ['project', '项目共享', count('project')], ['user', '全局', count('user')], ['connector', '连接器', count('connector')]]
-    .filter(([k, , n]) => k === 'all' || n)
-    .map(([k, t, n]) => `<span class="mcchip${mcFilter === k ? ' on' : ''}" onclick="mcFilter='${k}';mcRender()">${t} ${n}</span>`).join('');
-  const shown = mcRows.map((r, i) => [r, i]).filter(([r]) => mcFilter === 'all' || r.scope === mcFilter);
-  const broken = mcCfg && mcCfg.broken ? Object.entries(mcCfg.broken).map(([k, v]) => `<div class="agwarn">${k === 'claudeJson' ? '~/.claude.json' : '项目的 .mcp.json'} 读不了:${esc(v)}<br>这里不会去改它;请先用编辑器修好(Claude Code 自己也会读不了)。</div>`).join('') : '';
-  const stMsg = mcStatus === 'loading' ? '正在用 claude mcp list 挨个连一遍,服务器多时要几十秒…'
-    : (mcStatus && mcStatus.failed ? '没能检测连接状态:' + mcStatus.failed : (mcStatus && mcStatus.timedOut ? '检测超时,没回来的显示「未检测」'
-    : (!mcStatus && mcRows.length ? '连接状态要点「检测连接」才查:它会把每个服务器真的启动一遍,所以不自动跑。' : '')));
-  const opts = orderedProjects().map(p => `<option value="${escAttr(p.path)}"${p.path === mcProj ? ' selected' : ''}>${esc(p.short || p.path)}</option>`).join('');
-  main.innerHTML = `
-    <div class="mctop">
-      <div style="flex:1;min-width:240px"><h2>MCP 服务器</h2>
-        <div class="tmsg" style="margin-top:4px">给 Claude Code 接上外部工具(数据库、浏览器、GitHub…)。增删都通过官方 <code>claude mcp</code> 命令完成。</div></div>
-      <label class="tmsg" style="display:flex;align-items:center;gap:6px">项目<select onchange="mcPickProj(this.value)">${opts || '<option value="">(还没有项目)</option>'}</select></label>
-      <button class="btn ghost sm" onclick="mcCheck()" ${mcStatus === 'loading' ? 'disabled' : ''} title="跑 claude mcp list:会把每个服务器真的启动一遍(包括项目 .mcp.json 里的)。陌生仓库请先看清配置再点">${mcStatus === 'loading' ? '检测中…' : (mcStatus ? '重新检测连接' : '检测连接')}</button>
-      <button class="btn ghost sm" onclick="mcShow('import')">从 Claude Desktop 导入</button>
-      <button class="btn sm" onclick="mcShow('add')">${ico('plus', 'sm')}添加服务器</button>
-    </div>
-    ${broken}
-    <div class="mcchips">${chips}</div>
-    ${mcRows.length ? `<table class="mctbl"><thead><tr><th>名称</th><th>类型</th><th>范围</th><th>命令 / 地址</th><th>状态</th></tr></thead><tbody>
-      ${shown.map(([r, i]) => `<tr class="${mcSel === mcKey(r) && mcSide === 'detail' ? 'sel' : ''}" onclick="mcPick(${i})">
-        <td><b>${esc(r.name)}</b></td><td>${esc(r.type || '')}</td>
-        <td><span class="mcbadge" title="${escAttr((MC_SCOPE[r.scope] || [])[1] || '')}">${esc((MC_SCOPE[r.scope] || [r.scope])[0])}</span></td>
-        <td><div class="tgt" title="${escAttr(mcTarget(r))}">${esc(mcTarget(r))}</div></td><td>${mcStHtml(r)}</td></tr>`).join('')}
-      </tbody></table>` : `<div class="agcard" style="max-width:620px"><b>还没有 MCP 服务器</b>
-        <div class="tmsg" style="line-height:1.8">MCP 让 Claude Code 能用外部工具。点右上角「添加服务器」,或从 Claude Desktop 导入已经配好的。<br>
-        常见的:<code>npx -y @modelcontextprotocol/server-filesystem 某个目录</code>、<code>npx @playwright/mcp@latest</code>(浏览器)。</div></div>`}
-    <div class="tmsg">${esc(stMsg)}</div>
-    <div class="agnote" style="margin-top:0">「项目共享」的服务器(.mcp.json)要你在 Claude Code 里批准一次才会连 —— 在这个项目里开会话时它会问。改完配置后,已经开着的会话要重开才生效。</div>`;
-  mcRenderSide();
-}
-function mcPick(i) { mcSel = mcKey(mcRows[i]); mcSide = 'detail'; mcDelArm = 0; mcRes = ''; mcRender(); }
-function mcShow(which) {
-  mcSide = which; mcRes = ''; mcSel = null;
-  if (which === 'add' && !mcPj() && mcForm.scope !== 'user') mcForm.scope = 'user';
-  if (which === 'import') { mcDesk = null; mcDeskSel = new Set(); hub.mcpDesktop().then(r => { mcDesk = r || { ok: false, msg: '读不到' }; mcRenderSide(); }).catch(e => { mcDesk = { ok: false, msg: String(e) }; mcRenderSide(); }); }
-  mcRender();
-}
-function mcScopeOpts(cur) {
-  const pj = mcPj();
-  return ['local', 'project', 'user'].map(k => {
-    const dis = k !== 'user' && !pj;
-    return `<option value="${k}"${k === cur ? ' selected' : ''}${dis ? ' disabled' : ''}>${MC_SCOPE[k][0]}${k !== 'user' && pj ? '(' + esc(pj.short || '') + ')' : ''}</option>`;
-  }).join('');
-}
-function mcRenderSide() {
-  const el = document.getElementById('mcpSide');
-  if (!el) return;
-  const res = mcRes ? `<div class="agcard"><div class="mcres">${mcRes}</div></div>` : '';
-  if (mcSide === 'add') {
-    const f = mcForm;
-    const form = mcAddMode === 'json'
-      ? `<label class="agf">名称(粘的是单个服务器的配置时才要填)<input type="text" value="${escAttr(f.name)}" oninput="mcForm.name=this.value"></label>
-         <label class="agf">粘贴 JSON<textarea spellcheck="false" style="min-height:200px" oninput="mcForm.json=this.value" placeholder='{ "mcpServers": { "playwright": { "command": "npx", "args": ["@playwright/mcp@latest"] } } }'>${esc(f.json)}</textarea>
-           <span class="hint">从 README 里复制来的 { "mcpServers": {…} } 整段直接粘;里面有几个就加几个。</span></label>`
-      : `<label class="agf">名称<input type="text" maxlength="64" value="${escAttr(f.name)}" placeholder="例如 playwright" oninput="mcForm.name=this.value"><span class="hint">字母、数字、- _ .</span></label>
-         <div class="agf">类型<div class="mcseg">${['stdio', 'http', 'sse'].map(t => `<button class="${f.type === t ? 'on' : ''}" onclick="mcForm.type='${t}';mcRenderSide()">${t}</button>`).join('')}</div>
-           <span class="hint">${f.type === 'stdio' ? '本机起一个程序(多数 MCP 是这种,npx / uvx / node 启动)' : '连一个网址上的服务'}</span></div>
-         ${f.type === 'stdio' ? `
-           <label class="agf">命令<input type="text" value="${escAttr(f.command)}" placeholder="npx" oninput="mcForm.command=this.value"></label>
-           <label class="agf">参数(每行一个)<textarea spellcheck="false" oninput="mcForm.args=this.value" placeholder="-y&#10;@modelcontextprotocol/server-filesystem&#10;D:\\docs">${esc(f.args)}</textarea><span class="hint">带空格的路径也照常写一行,不用加引号。</span></label>
-           <label class="agf">环境变量(每行 名字=值)<textarea spellcheck="false" oninput="mcForm.env=this.value" placeholder="GITHUB_TOKEN=ghp_xxx">${esc(f.env)}</textarea></label>`
-         : `
-           <label class="agf">地址<input type="text" value="${escAttr(f.url)}" placeholder="https://example.com/mcp" oninput="mcForm.url=this.value"></label>
-           <label class="agf">请求头(每行 名字: 值)<textarea spellcheck="false" oninput="mcForm.headers=this.value" placeholder="Authorization: Bearer xxx">${esc(f.headers)}</textarea></label>`}`;
-    el.innerHTML = `<div class="aghead"><b>添加 MCP 服务器</b><button class="btn ghost sm" onclick="mcShow('detail')">关闭</button></div>
-      <div class="mcseg"><button class="${mcAddMode === 'form' ? 'on' : ''}" onclick="mcAddMode='form';mcRenderSide()">填表</button><button class="${mcAddMode === 'json' ? 'on' : ''}" onclick="mcAddMode='json';mcRenderSide()">粘贴 JSON</button></div>
-      ${form}
-      <label class="agf">范围<select onchange="mcForm.scope=this.value;mcRenderSide()">${mcScopeOpts(f.scope)}</select><span class="hint">${esc(MC_SCOPE[f.scope][1])}</span></label>
-      ${f.scope === 'project' ? '<div class="agwarn">「项目共享」写进项目的 .mcp.json,会跟着仓库提交。环境变量 / 请求头里不能写真实的密钥(会被拒绝),要写就写成 ${环境变量名},或者改用「仅本项目」/「全局」。</div>' : ''}
-      <div class="tmsg">将执行:</div>
-      <div class="mcpre">claude mcp add-json -s ${esc(f.scope)} ${esc((mcAddMode === 'form' ? f.name : (f.name || '<JSON 里的名字>')) || '<名称>')} '&lt;配置 JSON&gt;'</div>
-      <div class="ckacts"><button class="btn sm" onclick="mcAdd()" ${mcBusy ? 'disabled' : ''}>${mcBusy ? '添加中…' : '添加'}</button></div>
-      ${res}`;
-    return;
-  }
-  if (mcSide === 'import') {
-    const have = new Set(((mcCfg && mcCfg.servers) || []).map(s => s.name));
-    let body;
-    if (!mcDesk) body = '<div class="agempty">读取中…</div>';
-    else if (!mcDesk.ok) body = `<div class="agwarn">Claude Desktop 的配置读不了:${esc(mcDesk.msg || '')}</div>`;
-    else if (!mcDesk.servers.length) body = '<div class="agempty">没找到 Claude Desktop 的 MCP 配置(%APPDATA%\\Claude\\claude_desktop_config.json)。没装 Claude Desktop,或者它里面没配 MCP。</div>';
-    else body = `<div class="mcimp">${mcDesk.servers.map((s, i) => {
-      const dup = have.has(s.name);
-      return `<label><input type="checkbox" ${dup ? 'disabled' : ''} ${mcDeskSel.has(s.name) ? 'checked' : ''} onchange="this.checked?mcDeskSel.add(mcDesk.servers[${i}].name):mcDeskSel.delete(mcDesk.servers[${i}].name)">
-        <span><b>${esc(s.name)}</b>${dup ? ' <span class="tmsg">(已有同名,跳过)</span>' : ''}<br><span class="tmsg" style="word-break:break-all">${esc(mcTarget(s))}${s.envKeys.length ? ' · 环境变量 ' + esc(s.envKeys.join(', ')) : ''}</span></span></label>`;
-    }).join('')}</div>
-      <label class="agf">导入到<select onchange="mcDeskScope=this.value;mcRenderSide()">${mcScopeOpts(mcDeskScope)}</select></label>
-      ${mcDeskScope === 'project' ? '<div class="agwarn">导入到「项目共享」时,带真实环境变量值的服务器会被拒绝(密钥不能明文写进会跟着仓库提交的 .mcp.json)。</div>' : ''}
-      <div class="ckacts"><button class="btn sm" onclick="mcImport()" ${mcBusy ? 'disabled' : ''}>${mcBusy ? '导入中…' : '导入选中的'}</button></div>`;
-    el.innerHTML = `<div class="aghead"><b>从 Claude Desktop 导入</b><button class="btn ghost sm" onclick="mcShow('detail')">关闭</button></div>
-      <div class="tmsg" style="line-height:1.7">读 Claude Desktop 的配置,选中的逐个用 claude mcp add-json 加进来(环境变量一起带上)。Claude Desktop 那边不动。</div>
-      ${body}${res}`;
-    return;
-  }
-  const s = mcSelRow();
-  if (!s) {
-    el.innerHTML = `<div class="aghead"><b>详情</b></div><div class="agempty">点左边一行看详情。</div>${res}`;
-    return;
-  }
-  const where = s.scope === 'project' ? (mcCfg && mcCfg.mcpJsonPath) : (s.scope === 'connector' ? 'claude.ai 网页设置' : '~/.claude.json');
-  el.innerHTML = `<div class="aghead"><b>${esc(s.name)}</b>${mcStHtml(s)}</div>
-    <dl class="mcdl">
-      <dt>范围</dt><dd>${esc((MC_SCOPE[s.scope] || [s.scope])[0])} · ${esc((MC_SCOPE[s.scope] || ['', ''])[1])}</dd>
-      <dt>类型</dt><dd>${esc(s.type || '—')}</dd>
-      ${s.url ? `<dt>地址</dt><dd>${esc(s.url)}</dd>` : ''}
-      ${s.command ? `<dt>命令</dt><dd>${esc(s.command)}</dd>` : ''}
-      ${s.args && s.args.length ? `<dt>参数</dt><dd>${s.args.map(a => esc(a)).join('<br>')}</dd>` : ''}
-      ${s.envKeys.length ? `<dt>环境变量</dt><dd>${esc(s.envKeys.join(', '))}<br><span class="tmsg">(值不显示)</span></dd>` : ''}
-      ${s.headerKeys.length ? `<dt>请求头</dt><dd>${esc(s.headerKeys.join(', '))}<br><span class="tmsg">(值不显示)</span></dd>` : ''}
-      <dt>记在</dt><dd>${esc(where || '')}</dd>
-      ${s.statusText ? `<dt>检测结果</dt><dd>${esc(s.statusText)}</dd>` : ''}
-    </dl>
-    ${s.status === 'pending' ? '<div class="tmsg" style="line-height:1.7">这是项目 .mcp.json 里的服务器,还没批准。在这个项目里开一个会话,Claude Code 启动时会问你要不要启用。</div>' : ''}
-    ${s.status === 'auth' ? '<div class="tmsg" style="line-height:1.7">这个服务器要登录。在会话里输入 /mcp,选它完成登录。</div>' : ''}
-    ${s.status === 'fail' ? '<div class="tmsg" style="line-height:1.7">连不上:常见原因是命令没装(比如没有 node / uvx)、参数里的路径不对、密钥失效。可以在终端里直接运行上面的命令看报错。</div>' : ''}
-    ${s.scope === 'connector' ? '' : `<div class="ckacts"><button class="btn ghost sm danger" id="mcDelBtn" onclick="mcRemove()" ${mcBusy ? 'disabled' : ''}>移除</button>
-      <span class="tmsg">将执行 claude mcp remove -s ${esc(s.scope)} ${esc(s.name)}</span></div>`}
-    ${res}`;
-}
-const mcResHtml = (r) => (r.results || []).map(x => `${x.ok ? '✓' : '✗'} <b>${esc(x.name || '')}</b>  ${esc((x.msg || '').trim())}`).join('\n') || esc(r.msg || '');
-async function mcAdd() {
-  if (mcBusy) return;
-  mcBusy = true; mcRes = ''; mcRenderSide();
-  const req = { mode: mcAddMode, scope: mcForm.scope, name: mcForm.name.trim(), json: mcForm.json, projPath: mcProj || '',
-    form: { type: mcForm.type, command: mcForm.command, args: mcForm.args, env: mcForm.env, url: mcForm.url, headers: mcForm.headers } };
-  let r = null;
-  try { r = await hub.mcpAdd(req); } catch (e) { r = { ok: false, msg: String(e) }; }
-  mcBusy = false;
-  mcRes = mcResHtml(r);
-  if (r && r.ok) {
-    hubToast('已添加');
-    mcForm = { name: '', scope: mcForm.scope, type: mcForm.type, command: '', args: '', env: '', url: '', headers: '', json: '' };
-  }
-  await mcLoad();   // 不自动检测连接(见 mcOpen),要看连不连得上就点「检测连接」
-}
-async function mcRemove() {
-  const s = mcSelRow();
-  if (!s || mcBusy || s.scope === 'connector') return;
-  if (Date.now() - mcDelArm > 3000) {
-    mcDelArm = Date.now();
-    const b = document.getElementById('mcDelBtn'); if (b) b.textContent = '再点一次确认移除';
-    setTimeout(() => { const b2 = document.getElementById('mcDelBtn'); if (b2 && Date.now() - mcDelArm >= 3000) b2.textContent = '移除'; }, 3100);
-    return;
-  }
-  mcDelArm = 0; mcBusy = true; mcRenderSide();
-  let r = null;
-  try { r = await hub.mcpRemove(s.name, s.scope, mcProj || ''); } catch (e) { r = { ok: false, msg: String(e) }; }
-  mcBusy = false;
-  if (r && r.ok) { hubToast('已移除 ' + s.name); mcSel = null; mcRes = ''; }
-  else mcRes = '✗ 没能移除:' + esc((r && r.msg) || '');
-  await mcLoad();
-}
-async function mcImport() {
-  if (mcBusy || !mcDeskSel.size) { if (!mcDeskSel.size) hubToast('先勾选要导入的'); return; }
-  mcBusy = true; mcRes = ''; mcRenderSide();
-  let r = null;
-  try { r = await hub.mcpImportDesktop([...mcDeskSel], mcDeskScope, mcProj || ''); } catch (e) { r = { ok: false, msg: String(e) }; }
-  mcBusy = false;
-  mcRes = mcResHtml(r);
-  mcDeskSel = new Set();
-  await mcLoad();   // 不自动检测连接(见 mcOpen)
-}
-
-// ===== 检查点页 =====
-// 数据是 Claude Code 自己的文件检查点(/rewind 用的那份):每条提问前自动留一份被改文件的样子。
-// 这页只读它;「回退」走官方 claude --rewind-files,回退前主进程先把文件现在的样子存一份,能撤销(lib/checkpoints.js)。
-// 原来的「Git 改动」窗口也从这里进:检查点管 Claude 改了什么,Git 管还没提交的全部改动。
-// ckPlan:点了「回退」后主进程算出来的、会被动到的文件 { id, changes },确认框里列出来,确认了才真回退
-let ckProj = null, ckSessList = [], ckSid = null, ckItems = [], ckSel = null, ckFile = null, ckMsg = '', ckUndo = null, ckPlan = null, ckBusy = false;
-const ckPj = () => projects.find(p => p.path === ckProj);
-async function ckOpen() {
-  if (!ckProj || !ckPj()) {
-    const t = termTabs.find(x => x.id === activeTerm);
-    ckProj = (t && t.projPath) || curPath || (projects[0] && projects[0].path) || null;
-    if (t && t.sid && t.projPath === ckProj) ckSid = t.sid;
-  }
-  await ckLoadSessions();
-}
-async function ckLoadSessions() {
-  const pj = ckPj();
-  ckSessList = [];
-  if (pj) { try { ckSessList = await hub.sessions(pj.sessSlug, pj.mainSession, pj.path) || []; } catch {} }
-  if (!ckSessList.find(s => s.sid === ckSid)) ckSid = ckSessList[0] ? ckSessList[0].sid : null;
-  ckRenderSess();
-  await ckLoad();
-}
-async function ckLoad() {
-  const pj = ckPj();
-  ckItems = []; ckMsg = '';
-  if (pj && ckSid) {
-    let r = null;
-    try { r = await hub.ckptList(pj.sessSlug, ckSid); } catch (e) { r = { ok: false, msg: String(e) }; }
-    if (r && r.ok) ckItems = r.items || [];
-    else ckMsg = (r && r.msg) || '读不到这个会话的检查点';
-  }
-  if (!ckItems.find(i => i.id === ckSel)) ckSel = (ckItems.find(i => i.files.length) || ckItems[0] || {}).id || null;
-  ckFile = null; ckPlan = null;
-  ckRenderList(); ckRenderMain();
-}
-function ckRenderSess() {
-  const opts = orderedProjects().map(p => `<option value="${escAttr(p.path)}"${p.path === ckProj ? ' selected' : ''}>${esc(p.short || p.path)}</option>`).join('');
-  document.getElementById('ckSessCol').innerHTML = `
-    <div class="aghead"><b>检查点</b></div>
-    <select onchange="ckProj=this.value;ckSid=null;ckLoadSessions()" aria-label="项目">${opts || '<option>(还没有项目)</option>'}</select>
-    ${ckSessList.map(s => {
-      const open = termTabs.some(t => t.sid === s.sid);
-      return `<div class="cksess${s.sid === ckSid ? ' sel' : ''}" onclick="ckPickSess('${escAttr(escJs(s.sid))}')">
-        <div class="t"><span>${esc(s.title || s.sid.slice(0, 8))}</span>${open ? '<em class="ckopen">开着</em>' : ''}</div>
-        <div class="m">${esc(fmtAgTime(s.mtime))}</div></div>`;
-    }).join('') || '<div class="agempty" style="padding:6px 4px">这个项目还没有会话。</div>'}
-    <div class="agnote">数据来自 Claude Code 自己的检查点(和 /rewind 同一份):每条提问前,它会把这一轮要改的文件先存一份。只记 Claude 用编辑工具改的文件,命令行里改的不算。</div>`;
-}
-function ckPickSess(sid) { if (sid === ckSid) return; ckSid = sid; ckSel = null; ckRenderSess(); ckLoad(); }
-function ckRenderList() {
-  const el = document.getElementById('ckListCol');
-  if (ckMsg) { el.innerHTML = `<div class="agempty">${esc(ckMsg)}</div>`; return; }
-  if (!ckSid) { el.innerHTML = '<div class="agempty">左边选一个会话。</div>'; return; }
-  if (!ckItems.length) { el.innerHTML = '<div class="agempty">这个会话没有检查点(可能是很早的会话,或在设置里关了「Rewind code (checkpoints)」)。</div>'; return; }
-  el.innerHTML = ckItems.map((it, i) => {
-    const n = it.files.length;
-    return `<div class="ckitem${it.id === ckSel ? ' sel' : ''}${n ? ' has' : ''}" onclick="ckPick('${escAttr(escJs(it.id))}')">
-      <div class="ckrail"><i></i>${i < ckItems.length - 1 ? '<b></b>' : ''}</div>
-      <div class="ckbody"><div class="p">${esc(it.prompt || '(空提问)')}</div>
-        <div class="m">${esc(fmtAgTime(it.at))} · ${n ? '这一轮改了 ' + n + ' 个文件' : '没改文件'}</div></div>
-    </div>`;
-  }).join('');
-}
-function ckPick(id) { ckSel = id; ckFile = null; ckPlan = null; ckRenderList(); ckRenderMain(); }
-const ckRel = (abs) => { const pj = ckPj(); const b = pj ? pj.path.replace(/[\\/]+$/, '') + '\\' : ''; return b && abs.toLowerCase().startsWith(b.toLowerCase()) ? abs.slice(b.length) : abs; };
-// <ck-open>
-// 会话是不是在总控里开着(开着就不许直接回退文件)。新开的会话标签认出会话号之前 sid 是空的,
-// 同一个项目里有这样的标签就拿不准是不是这个会话 —— 一律当开着。主进程 ckpt.openInHubMsg 还会再查一遍。
-// test/ckpt-ui.test.js 截这段真源码测。
-function ckOpenMsg(tabs, sid, projPath) {
-  if (!sid) return '';
-  if (tabs.some(t => t.sid === sid)) return '这个会话正在总控里开着,不能直接回退文件(那边的 Claude 不知道文件被退了,接着改会乱)。先关掉它的终端标签,或者用「在会话里用 /rewind」连对话一起退。';
-  const norm = (p) => String(p || '').replace(/[\\/]+$/, '').toLowerCase();
-  if (projPath && tabs.some(t => !t.sid && norm(t.projPath) === norm(projPath))) return '这个项目里有新开的会话标签还没认出是哪个会话(可能就是这一个),不能直接回退文件。先关掉它的终端标签再回退。';
-  return '';
-}
-// </ck-open>
-function ckRenderMain() {
-  const el = document.getElementById('ckMain');
-  const pj = ckPj();
-  const it = ckItems.find(x => x.id === ckSel);
-  const sess = ckSessList.find(s => s.sid === ckSid);
-  const openMsg = ckOpenMsg(termTabs, ckSid, pj && pj.path);
-  const open = !!openMsg;
-  const undoBar = ckUndo ? `<div class="ckbar ${ckUndo.unsure ? 'warn' : 'ok'}">${ckUndo.unsure
-      ? `没能确认回退结果(${esc((ckUndo.msg || '').slice(0, 120))}),文件可能已经回退了一部分。回退前的样子存在 ${esc(ckUndo.dir)},可以撤销放回去。`
-      : `已把文件回退到「${esc((ckUndo.prompt || '').slice(0, 40))}」之前。回退前的样子存在 ${esc(ckUndo.dir)}。`}
-      ${ckUndo.recorded === false ? '<br>注意:没能记下回退后的样子,撤销会用备份覆盖这些文件(回退之后你改过的内容会先另存到备份目录下的 pre-undo-时间 文件夹)。' : ''}
-      <button class="btn ghost sm" onclick="ckUndoRewind()">撤销这次回退</button><button class="btn ghost sm" onclick="ckUndo=null;ckRenderMain()">知道了</button></div>` : '';
-  const gitBtn = pj ? `<button class="btn ghost sm" onclick="ckGit()">${ico('file', 'sm')}Git 未提交的改动</button>` : '';
-  if (!it) { el.innerHTML = undoBar + `<div class="ckacts">${gitBtn}</div><div class="agempty">${ckSid ? '左边选一个检查点。' : ''}</div>`; return; }
-  el.innerHTML = undoBar + `
-    <div>
-      <div style="font-size:15px;font-weight:600;line-height:1.5;word-break:break-all">${esc(it.prompt || '(空提问)')}</div>
-      <div class="tmsg" style="margin-top:4px">${esc(fmtAgTime(it.at))} · ${esc(sess ? (sess.title || '') : '')}</div>
-    </div>
-    ${open ? `<div class="ckbar warn">${esc(openMsg)}</div>` : ''}
-    ${ckPlanBar(it)}
-    <div class="ckacts">
-      <button class="btn sm" id="ckRewBtn" onclick="ckRewind()" ${!open && !ckBusy && (it.files.length || ckItems.indexOf(it) > 0) ? '' : 'disabled'} title="用官方 claude --rewind-files:把这个会话改过的文件恢复成这条提问发出之前的样子">${ckBusy ? '回退中…' : '回退文件到这条提问之前'}</button>
-      <button class="btn ghost sm" onclick="ckRewindInSession()" title="在会话里输入 /rewind,用官方界面选择回退对话和/或代码">在会话里用 /rewind</button>
-      <button class="btn ghost sm" onclick="ckFork()" title="claude --resume --fork-session:复制一份对话接着聊,原会话不动">分叉成新会话</button>
-      ${gitBtn}
-    </div>
-    <div class="tmsg">这一轮改动的文件(点一个看改动):</div>
-    <div class="ckfiles">${it.files.map((f, i) => `<div class="ckf${f.key === ckFile ? ' sel' : ''}" data-i="${i}" onclick="ckShowDiff(${i})" title="${escAttr(f.abs)}"><span class="gf-k ${f.kind}">${f.kind}</span><span>${esc(ckRel(f.abs))}</span></div>`).join('') || '<span class="agempty">这一轮没有改文件。</span>'}</div>
-    <div class="ckdiff diffview" id="ckDiff"><span class="h">${it.files.length ? '↑ 点一个文件看这一轮对它的改动' : ''}</span></div>`;
-  if (!ckFile && it.files.length) ckShowDiff(0);
-}
-// 路径里有反斜杠,不能拼进 onclick 的字符串里(\c 会被当成转义) —— 一律传序号
-function ckGit() { const pj = ckPj(); if (pj) openGit(pj.path, pj.short || ''); }
-async function ckShowDiff(i) {
-  const pj = ckPj(), it = ckItems.find(x => x.id === ckSel);
-  const f = it && it.files[i];
-  if (!f) return;
-  const key = f.key;
-  ckFile = key;
-  document.querySelectorAll('#ckMain .ckf').forEach(x => x.classList.toggle('sel', x.dataset.i === String(i)));
-  const el = document.getElementById('ckDiff');
-  if (!el || !pj) return;
-  el.innerHTML = '<span class="h">读取中…</span>';
-  let d = '';
-  try { d = await hub.ckptDiff(pj.sessSlug, ckSid, ckSel, key); } catch (e) { d = '(没能生成对比)'; }
-  if (ckFile !== key) return;
-  el.innerHTML = (d || '(无差异)').split('\n').slice(0, 3000).map(l => {
-    const c = l.startsWith('+') ? 'a' : (l.startsWith('-') ? 'd' : 'h');
-    return `<span class="${c}">${esc(l) || ' '}</span>`;
-  }).join('');
-}
-// 确认框:列出这次回退会动的文件(主进程算的),确认了才做
-function ckPlanBar(it) {
-  if (!ckPlan || ckPlan.id !== it.id) return '';
-  const KIND = { '改': '改回原样', '删': '删掉(那时还没有)', '恢复': '重新建出来(现在被删了)' };
-  const shown = ckPlan.changes.slice(0, 30);
-  return `<div class="ckbar warn" style="display:block">
-    <div style="margin-bottom:6px">回退会动这 ${ckPlan.changes.length} 个文件(动之前会先备份,之后能撤销):</div>
-    <div class="tmsg" style="margin-bottom:6px">请先确认这个会话没在别处运行:总控只认得出自己开着的标签和 5 分钟内有写入的会话,外部终端里开着、但一阵子没动的会话认不出来。</div>
-    <div style="max-height:180px;overflow:auto;font-family:var(--mono,monospace);font-size:12px;line-height:1.7">${shown.map(c => `<div><span class="gf-k ${c.kind === '恢复' ? '新' : c.kind}">${esc(c.kind)}</span> ${esc(ckRel(c.path))} <span class="tmsg">${esc(KIND[c.kind] || '')}</span></div>`).join('')}${ckPlan.changes.length > shown.length ? `<div class="tmsg">…还有 ${ckPlan.changes.length - shown.length} 个</div>` : ''}</div>
-    <div style="margin-top:8px;display:flex;gap:8px"><button class="btn sm" onclick="ckRewindConfirm()" ${ckBusy ? 'disabled' : ''}>${ckBusy ? '回退中…' : '确认回退'}</button><button class="btn ghost sm" onclick="ckPlan=null;ckRenderMain()" ${ckBusy ? 'disabled' : ''}>取消</button></div>
-  </div>`;
-}
-async function ckRewind() {
-  const pj = ckPj(), it = ckItems.find(x => x.id === ckSel);
-  if (!pj || !it || ckBusy) return;
-  const openMsg = ckOpenMsg(termTabs, ckSid, pj.path);
-  if (openMsg) { hubToast(openMsg); return; }
-  let r = null;
-  try { r = await hub.ckptPlan(pj.sessSlug, ckSid, it.id); } catch (e) { r = { ok: false, msg: String(e) }; }
-  if (ckSel !== it.id) return;   // 等的时候换了一条
-  if (!r || !r.ok) { hubToast('不能回退:' + ((r && r.msg) || '未知原因')); return; }
-  if (r.running) { hubToast(r.running); return; }
-  if (!r.changes.length) { hubToast('文件已经是这条提问之前的样子,不用回退'); return; }
-  ckPlan = { id: it.id, changes: r.changes };
-  ckRenderMain();
-}
-async function ckRewindConfirm() {
-  const pj = ckPj(), it = ckItems.find(x => x.id === ckSel);
-  if (!pj || !it || ckBusy || !ckPlan || ckPlan.id !== it.id) return;
-  ckBusy = true; ckRenderMain();
-  let r = null;
-  try { r = await hub.ckptRewind(pj.sessSlug, ckSid, it.id, ckPlan.changes.map(c => c.path)); } catch (e) { r = { ok: false, msg: String(e) }; }
-  ckBusy = false;
-  if (r && r.replan) { hubToast(r.msg); ckPlan = null; ckRenderMain(); await ckRewind(); return; }
-  const note = r && r.bid && r.recorded === false ? '(没能记下回退后的样子:撤销时不删文件;要覆盖的文件会先把当时的内容另存一份)' : '';
-  if (r && r.ok) { ckUndo = { bid: r.bid, dir: r.backupDir, prompt: it.prompt, recorded: r.recorded !== false }; hubToast('文件已回退' + note); }
-  else if (r && r.unsure && r.bid) { ckUndo = { bid: r.bid, dir: r.backupDir, prompt: it.prompt, unsure: true, msg: r.msg, recorded: r.recorded !== false }; hubToast('没能确认回退结果,备份已保留' + note); }
-  else hubToast('没能回退:' + ((r && r.msg) || '未知原因'));
-  await ckLoad();
-}
-async function ckUndoRewind() {
-  if (!ckUndo || ckBusy) return;
-  ckBusy = true;
-  let r = null;
-  try { r = await hub.ckptUndo(ckUndo.bid); } catch (e) { r = { ok: false, msg: String(e) }; }
-  ckBusy = false;
-  if (r && r.ok) {
-    const sk = r.skipped || [], kp = r.kept || [], sv = r.saved || [];
-    const names = (l) => l.slice(0, 3).map(p => p.split(/[\\/]/).pop()).join('、') + (l.length > 3 ? ' 等' : '');
-    hubToast(`已撤销:放回 ${r.restored} 个文件` + (r.removed ? `,删掉 ${r.removed} 个回退时出现的文件` : '')
-      + (sk.length ? `。有 ${sk.length} 个文件回退后又被改过、读不了或写不进去,没动它们:${names(sk)}(原来的内容还在 ${ckUndo.dir})` : '')
-      + (kp.length ? `。有 ${kp.length} 个文件没删(拿不准是不是回退弄出来的):${names(kp)}` : '')
-      + (sv.length ? `。覆盖前把 ${sv.length} 个文件当时的内容另存了:${names(sv.map(x => x.path))}(在 ${ckUndo.dir} 下的 pre-undo 文件夹)` : ''));
-    ckUndo = null;
-  }
-  else hubToast('撤销失败:' + ((r && r.msg) || '未知原因') + '。备份还在 ' + ckUndo.dir);
-  await ckLoad();
-}
-// <ck-prompt>
-// 看终端屏幕判断 Claude Code 能不能接输入了:
-//   'trust' 还停在「信任这个文件夹吗」—— 这时填字会落进对话框,不能填
-//   'ready' 出现了输入行(❯ 或 > 开头,且不是 1. 2. 这种选项菜单)
-//   'wait'  其余(启动画面、还在加载)
-function ckPromptState(lines) {
-  const ls = (lines || []).map(l => String(l || ''));
-  if (ls.some(l => /trust (this|the files in this) folder/i.test(l))) return 'trust';
-  const input = ls.some(l => /^\s*[│|]?\s*[❯>](\s|$)/.test(l) && !/^\s*[│|]?\s*[❯>]\s*\d+\./.test(l));
-  return input ? 'ready' : 'wait';
-}
-// </ck-prompt>
-const ckScreen = (t) => { try { const b = t.term.buffer.active; return Array.from({ length: t.term.rows }, (_, i) => { const l = b.getLine(b.viewportY + i); return l ? l.translateToString(true) : ''; }); } catch { return []; } };
-async function ckRewindInSession() {
-  const pj = ckPj();
-  if (!pj || !ckSid) return;
-  const sess = ckSessList.find(s => s.sid === ckSid);
-  let t = termTabs.find(x => x.sid === ckSid);
-  if (!t) {
-    await openTerm(pj.path, pj.short, ckSid, (sess && sess.title) || pj.short);
-    t = termTabs.find(x => x.sid === ckSid);
-    if (!t) return;
-  } else activateTerm(t.id);
-  // 等 Claude Code 出现输入行、而且画面停下来(连着两次一样)再填 —— 早了会被启动画面吞掉,或者落进信任对话框
-  let prev = '', state = 'wait';
-  for (let i = 0; i < 100; i++) {
-    const scr = ckScreen(t), cur = scr.join('\n');
-    state = ckPromptState(scr);
-    if (state === 'trust') { hubToast('先在终端里确认信任这个文件夹,再点一次「在会话里用 /rewind」'); return; }
-    if (state === 'ready' && cur === prev) break;
-    prev = cur;
-    await new Promise(r => setTimeout(r, 300));
-    if (!termTabs.includes(t)) return;   // 等的时候标签被关了
-  }
-  if (state !== 'ready') { hubToast('Claude Code 还没准备好,等它起来后在会话里手动输入 /rewind'); return; }
-  hub.termInput(t.id, '/rewind');
-  hubToast('已在会话里填入 /rewind,回车后选要回到哪一条');
-}
-async function ckFork() {
-  const pj = ckPj();
-  if (!pj || !ckSid || !/^[0-9a-f-]{36}$/i.test(ckSid)) return;   // sid 要拼进命令行,只认 UUID
-  const sess = ckSessList.find(s => s.sid === ckSid);
-  await openTerm(pj.path, pj.short, '', '分叉 · ' + ((sess && sess.title) || pj.short), `claude --resume "${ckSid}" --fork-session`);
-}
-
 let lastProxyNote = '';
 async function openTerm(projPath, projShort, sid, title, cmdOverride, skipCheck) {
   if (sid) { const ex = termTabs.find(t => t.sid === sid); if (ex) { activateTerm(ex.id); return; } }
   if (!skipCheck && needsClaude(cmdOverride) && !(await claudeReady({ projPath, projShort, sid, title, cmdOverride }))) return;
   let before = null;   // 新会话:先记下这个项目已有哪些 sid,好认领新生成的那个
-  if (!sid) {
+  // 只有跑 Claude 会话的标签才认:codex / gemini / claude update 这类标签以前也会去认,可能把旁边新开的 Claude 会话号抢走
+  // (认错了自动改名会往 codex 里打 /rename,检查点回退的判断也跟着错 —— 2026-11-19 复核查出来的)
+  if (!sid && needsClaude(cmdOverride) && !/^claude (update|install)\b/.test(cmdOverride || '')) {
     const pj = projects.find(x => x.path === projPath);
     if (pj) { try { before = new Set((await hub.sessions(pj.sessSlug, pj.mainSession, pj.path)).map(x => x.sid)); } catch {} }
   }
@@ -3982,8 +3648,18 @@ async function openTerm(projPath, projShort, sid, title, cmdOverride, skipCheck)
   // 输入法上屏后 DOM 渲染偶尔留着旧画面,补一次整屏重画
   const ta = pane.querySelector('.xterm-helper-textarea');
   if (ta) ta.addEventListener('compositionend', () => setTimeout(() => { try { term.refresh(0, term.rows - 1); } catch {} }, 0));
-  term.registerLinkProvider(termLinkProvider(term));   // 路径/链接可点击
-  term.onData(d => hub.termInput(r.id, d));
+  const linkProv = termLinkProvider(term);
+  term.registerLinkProvider(linkProv);   // 路径/链接可点击
+  const linkColor = linkColorAttach(term, linkProv);   // 能点的路径 / 网址常驻上色(按类型分颜色);关标签时拆掉
+  term.onData(d => { const tt = termTabs.find(x => x.id === r.id); if (tt && !isTermAutoReply(d)) tt.lastKeyAt = Date.now(); hub.termInput(r.id, d); });
+  // 输入法组字期间不自动打 /rename(见 onCcTryRename)
+  try {
+    const ta = term.textarea;
+    if (ta) {
+      ta.addEventListener('compositionstart', () => { const tt = termTabs.find(x => x.id === r.id); if (tt) tt.composing = true; });
+      ta.addEventListener('compositionend', () => { const tt = termTabs.find(x => x.id === r.id); if (tt) { tt.composing = false; tt.lastKeyAt = Date.now(); } });
+    }
+  } catch {}
   term.onResize(({ cols, rows }) => hub.termResize(r.id, cols, rows));
   // Ctrl+V 智能粘贴:图片->存盘填路径;文字->括注粘贴。Ctrl+=/-/0 调字号
   term.attachCustomKeyEventHandler(e => {
@@ -4087,20 +3763,24 @@ async function openTerm(projPath, projShort, sid, title, cmdOverride, skipCheck)
   pane.addEventListener('dragover', e => e.preventDefault());
   pane.addEventListener('drop', e => {
     e.preventDefault();
-    const parts = [...(e.dataTransfer.files || [])].map(f => { try { return '"' + hub.pathForFile(f) + '"'; } catch { return ''; } }).filter(Boolean).join(' ');
+    const paths = [...(e.dataTransfer.files || [])].map(f => { try { return hub.pathForFile(f); } catch { return ''; } }).filter(Boolean);
+    if (pathBarOwnDrop(paths)) return;   // 从路径工具条「拖到微信」拖出去又落回终端:不往输入框里填
+    const parts = paths.map(p => '"' + p + '"').join(' ');
     if (parts) hub.termInput(r.id, parts + ' ');
   });
-  termTabs.push({ id: r.id, sid: sid || '', title: title || projShort, projPath, projShort, term, fit, pane });
+  termTabs.push({ id: r.id, sid: sid || '', title: title || projShort, projPath, projShort, term, fit, pane, linkColor, claude: needsClaude(cmdOverride) && !/^claude (update|install)\b/.test(cmdOverride || '') });
   saveOpenTabs();
+  setTimeout(refreshCcSess, 6000);   // Claude 起来、在 ~/.claude/sessions 登记完以后,标签上尽快显示「@名字」
   if (before) bindNewSid(r.id, projPath, before);
   renderProjects();
   renderSessions();
   activateTerm(r.id);
 }
 function activateTerm(id) {
+  pathBarHide(true);   // 工具条跟着路径走,换标签就收
   const t = termTabs.find(x => x.id === id);
   if (!t) return;
-  if (curPage !== 'sess') setPage('sess');   // 铃铛/完成条跳到某个会话时,别让它藏在功能页后面
+  if (t.sid) bellPopsDropSid(t.sid);   // 人已经切到这个会话了,它那张「等你拍板 / 跑完了」卡就不用挂着
   activeTerm = id;
   termProj = t.projPath;
   refreshCtx();   // 切会话立刻换成这个会话的上下文读数,别等 15 秒
@@ -4143,19 +3823,28 @@ function tickDots() {
 }
 setInterval(tickDots, 1200);
 let splitN = store.get('hub_split', 1);   // 同屏并排几个终端(1/2/3)
+// 分屏按钮是开关(2026-11-21 三月:「这个分屏关了,我都关不掉」—— 以前是 1→2→3→1 循环,2 屏时点一下变 3 屏不是关;
+// 项目里只有一个会话时还显示「3 屏」,画面没变化像坏了):开着点一下就回单屏;关着点一下按这个项目开着的会话数并排,最多 3 个
 function cycleSplit() {
-  splitN = splitN >= 3 ? 1 : splitN + 1;
+  if (splitN > 1) {
+    splitN = 1;
+  } else {
+    const n = termTabs.filter(t => t.projPath === termProj).length;
+    if (n < 2) { splitN = 1; store.set('hub_split', 1); applySplit(); hubToast('这个项目只开着一个会话,没什么可并排的'); return; }
+    splitN = Math.min(3, n);
+  }
   store.set('hub_split', splitN);
   applySplit();
-  hubToast(splitN === 1 ? '单屏' : splitN + ' 个会话并排(从当前标签往后取)');
+  hubToast(splitN === 1 ? '已关掉分屏' : splitN + ' 个会话并排(再点一下关掉)');
 }
 function applySplit() {
   const host = document.getElementById('termHost');
   const b = document.getElementById('splitbtn');
-  if (b) b.textContent = splitN === 1 ? '▥ 分屏' : '▥ ' + splitN + ' 屏';
   const sameProj = termTabs.filter(t => t.projPath === termProj);
   const idx = Math.max(0, sameProj.findIndex(t => t.id === activeTerm));
   const show = splitN > 1 ? sameProj.slice(idx, idx + splitN) : sameProj.filter(t => t.id === activeTerm);
+  // 按钮写实际并排了几个(设成 3 屏但这个项目只剩 1 个会话时,别还写「3 屏」)
+  if (b) b.textContent = (splitN > 1 && show.length > 1) ? '▥ ' + show.length + ' 屏' : '▥ 分屏';
   if (host) host.classList.toggle('splitwrap', splitN > 1 && show.length > 1);
   document.querySelectorAll('.tpane').forEach(p => {
     const on = show.some(t => 'tp-' + t.id === p.id);
@@ -4177,11 +3866,13 @@ function gotoConsole() {
 }
 function closeTerm(id, ev) {
   if (ev) ev.stopPropagation();
+  pathBarHide(true);
   const i = termTabs.findIndex(x => x.id === id);
   if (i < 0) return;
   const proj = termTabs[i].projPath;
   hub.termKill(id);
   termTabs[i].pane.remove();
+  try { if (termTabs[i].linkColor) termTabs[i].linkColor.dispose(); } catch {}   // 先停上色,别往关掉的终端上挂东西
   try { termTabs[i].term.dispose(); } catch {}
   termTabs.splice(i, 1);
   saveOpenTabs();
@@ -4201,9 +3892,12 @@ function renderTermTabs() {
   const v = document.getElementById('tfval'); if (v) v.textContent = termFont;
   el.innerHTML = tabs.map(t => {
     const disp = t.title.length > 14 ? t.title.slice(0, 14) + '…' : t.title;
-    return `<div class="ttab${t.id === activeTerm ? ' on' : ''}" id="tt-${t.id}" title="${escAttr(t.title)}(双击改名 · 按住拖动排序)" data-tid="${t.id}"
+    // @名字:Claude Code 里这个会话叫什么(别的会话找它、@ 它用的)。没改过名就是 claude-31 这种默认编号
+    const cc = (t.sid && ccSess[t.sid] && ccSess[t.sid].name) || (!t.sid && termCc[t.id] && termCc[t.id].name);
+    const ccHtml = cc && cc !== t.title ? `<span class="tcc" title="别的会话喊它「${escAttr(cc)}」">@${esc(cc.length > 20 ? cc.slice(0, 20) + '…' : cc)}</span>` : '';
+    return `<div class="ttab${t.id === activeTerm ? ' on' : ''}" id="tt-${t.id}" title="${escAttr(t.title)}${cc ? ' · 别的会话喊它 @' + escAttr(cc) : ''}(双击改名 · 按住拖动排序)" data-tid="${t.id}"
       onmousedown="dndDown(event, '${t.id}')" oncontextmenu="termMenu('${t.id}', event)"
-      onclick="if(!justDragged)activateTerm('${t.id}')" ondblclick="renameTab('${t.id}', event)"><i class="tdot sdot ${termStatus(t)}" data-st="${termStatus(t)}" title="${termStatusText(t)}"></i><span class="tl">${esc(disp)}</span><span class="tx" onclick="event.stopPropagation();closeTerm('${t.id}', event)">${ico('x','sm')}</span></div>`;
+      onclick="if(!justDragged)activateTerm('${t.id}')" ondblclick="renameTab('${t.id}', event)"><i class="tdot sdot ${termStatus(t)}" data-st="${termStatus(t)}" title="${termStatusText(t)}"></i><span class="tl">${esc(disp)}</span>${ccHtml}<span class="tx" onclick="event.stopPropagation();closeTerm('${t.id}', event)">${ico('x','sm')}</span></div>`;
   }).join('');
 }
 // 终端标签/进行中行:指针拖动排序(HTML5 DnD 在这类工具栏里不稳,改用鼠标事件)
@@ -4361,6 +4055,7 @@ function termMenu(id, ev) {
   const items = [
     { act: 'go', icon: 'terminal', label: '切到这个终端', run: () => activateTerm(id) },
     { act: 'rn', icon: 'pen', label: '重命名会话…', run: () => renameTermPrompt(id) },
+    ...(t.sid ? [{ act: 'sid', icon: 'file', label: '复制会话号(给别的会话用)', run: () => copySid(t.sid) }] : []),
     { sep: true },
     { act: 'loc', icon: 'search', label: '在项目里定位', run: () => { if (pj) { leftTab = 'all'; store.set('hub_lefttab', 'all'); selProj(pj.path, t.sid || ''); } } },
     { act: 'dir', icon: 'folder', label: '打开项目目录', run: () => hub.openDir(t.projPath) },
@@ -4449,7 +4144,7 @@ async function tabRnCommit(inp, id) {
   renderTermTabs();
 }
 hub.onTermData(m => { const t = termTabs.find(x => x.id === m.id); if (t) { t.lastDataAt = Date.now(); t.term.write(m.data); } });
-hub.onTermExit(m => { const t = termTabs.find(x => x.id === m.id); if (t) { t.clInstall = false; t.term.write('\r\n\x1b[90m[会话进程已结束,可点 × 关闭标签]\x1b[0m\r\n'); } });   // clInstall:安装进程结束了就不再算「正在安装」,否则没装上的人点不了第二次
+hub.onTermExit(m => { const t = termTabs.find(x => x.id === m.id); if (t) { t.exited = true; t.clInstall = false; t.term.write('\r\n\x1b[90m[会话进程已结束,可点 × 关闭标签]\x1b[0m\r\n'); } });   // clInstall:安装进程结束了就不再算「正在安装」,否则没装上的人点不了第二次
 window.addEventListener('resize', () => { const t = termTabs.find(x => x.id === activeTerm); if (t) { try { t.fit.fit(); } catch {} } });
 // 只盯 window resize 不够:侧栏/专注/分屏等布局变化不改窗口大小,终端列数就停在旧值,
 // 右边被裁掉一截,输入行的字和光标跑到看不见的地方。盯住终端容器本身,尺寸一变就重新 fit 可见的面板。
@@ -4777,7 +4472,7 @@ function cliRecObj(r) {
   else hubToast('这条的工作目录已经查不到了,只帮你标成已读');
   renderFeed();
 }
-function markAllRead() { unread = {}; saveUnread(); refreshUnreadUI(); }
+function markAllRead() { unread = {}; saveUnread(); refreshUnreadUI(); bellPopsClearAll(); }
 // 落到正确的会话上(铃铛提示卡点进来走这儿)
 function jumpToRec(r) {
   if (!r) return;
@@ -4847,6 +4542,13 @@ function bellPopsToDrawer(ev) {
 }
 function bellPopClose(id) { bellPops = bellPops.filter(p => p.id !== id); renderBellPops(); }
 function bellPopsClearAll() { bellPops = []; renderBellPops(); }
+// 收掉某个会话的提示卡(进了这个会话、清了它的未读时调)。bellPops 在后面才声明,这里防一下没初始化
+function bellPopsDropSid(sid) {
+  if (!sid || typeof bellPops === 'undefined') return;
+  const n = bellPops.length;
+  bellPops = bellPops.filter(p => (p.rec && p.rec.sid) !== sid);
+  if (bellPops.length !== n) renderBellPops();
+}
 function bellPopGo(id) {
   const p = bellPops.find(x => x.id === id);
   if (!p) return;
@@ -4896,11 +4598,10 @@ function bindRail() {
 }
 
 // <viewing-rec>
-// 这条完成记录对应的会话,用户此刻是不是就在里面:在会话页、终端区开着,而且当前标签就是它。
-// 只开着面板(没在终端区)、正在恢复上次的标签、当前标签是别的会话、停在 Agents 等功能页(终端被盖住)—— 都不算。
+// 这条完成记录对应的会话,用户此刻是不是就在里面:终端区开着,而且当前标签就是它。
+// 只开着面板(没在终端区)、正在恢复上次的标签、当前标签是别的会话 —— 都不算。
 function viewingRec(r) {
   if (!r || restoring) return false;
-  if (curPage !== 'sess') return false;
   if (!document.getElementById('termWrap').classList.contains('on')) return false;
   const t = termTabs.find(x => x.id === activeTerm);
   if (!t) return false;
@@ -4920,7 +4621,7 @@ hub.onFeed(async (list) => {
     if (!r.sid) continue;
     if (termTabs.some(t => t.sid === r.sid)) continue;
     const t = termTabs.find(t => !t.sid && (r.cwd ? t.projPath === r.cwd : leaf(t.projPath) === r.proj));
-    if (t) { t.sid = r.sid; hub.termBindSid && hub.termBindSid(t.id, t.sid); if (r.task) t.title = r.task; }
+    if (t) { t.sid = r.sid; if (r.task) t.title = r.task; }
   }
   renderTermTabs();
   // 当前项目有新完成 → 刷新会话列表(新会话会冒出来)
@@ -5396,6 +5097,27 @@ if (hub.onAgentTask) hub.onAgentTask(task => {
   setInterval(() => refreshQuota(true), 3 * 60e3);   // 每3分钟刷官方额度(会话%变化快)
   refreshCcSess();
   setInterval(refreshCcSess, 20e3);                  // Claude Code 那套会话名(别的会话 @ 它用的)
+  // 主进程自动把总控名 /rename 过去以后(空闲、没人在打字时),等它落盘再刷一次
+  // 会话里 /clear 之后会话号变了(主进程从 Claude Code 登记里看出来的,见 main.js <cc-follow-sid>):标签跟着换
+  if (hub.onTermSidChanged) hub.onTermSidChanged(({ id, sid }) => {
+    const t = termTabs.find(x => x.id === id);
+    if (!t || t.sid === sid) return;
+    t.sid = sid;
+    saveOpenTabs(); renderSessions(); refreshCtx(); refreshCcSess();
+  });
+  // 主进程挑出来、核过进程的「该自动改名」的会话:这里读终端画面,Claude 的输入框确实是空的才打 /rename(见 <cc-input-empty>)
+  if (hub.onCcTryRename) hub.onCcTryRename((list) => {
+    let n = 0;
+    for (const it of list || []) {
+      const t = termTabs.find(x => x.id === it.id);
+      if (!t || t.sid !== it.sid || !ccInputEmpty(t.term)) continue;
+      if (t.composing || Date.now() - (t.lastKeyAt || 0) < 3000) continue;   // 刚按过键(字可能还没画出来)/ 输入法正在组字
+      ccSend(t, '/rename ' + it.name);   // 文字和回车分开发,见 <cc-send>
+      if (hub.ccTyped) hub.ccTyped(it.sid, it.name);
+      n++;
+    }
+    if (n) setTimeout(refreshCcSess, 2500);   // 等它落盘再拉一次
+  });
   bindEdges();
   bindRail();
   applyZen();
@@ -5411,7 +5133,7 @@ if (hub.onAgentTask) hub.onAgentTask(task => {
       if (document.getElementById('docbox').classList.contains('open')) { closeDoc(); return; }
       if (document.getElementById('searchbox').classList.contains('open')) { closeSearch(); return; }
       if (document.getElementById('editbox').classList.contains('open')) { closeEdit(); return; }
-      ['gitbox', 'pmtbox'].forEach(id => document.getElementById(id).classList.remove('open'));
+      ['gitbox', 'pmtbox', 'mcpbox'].forEach(id => document.getElementById(id).classList.remove('open'));
       if (zen) { toggleZen(); return; }
     }
     if (e.ctrlKey && (e.key === 'f' || e.key === 'F')) { e.preventDefault(); openSearch(); return; }

@@ -21,9 +21,3 @@ test('onclick 里的参数:escJs 再 escAttr 能原样送到;只用 escAttr 会�
   }
   assert.throws(() => runOnclick(`f('${escAttr("it's")}')`));   // 修之前的写法:JS 语法错
 });
-
-test('左侧功能栏的几页里,onclick 拼字符串参数一律 escAttr(escJs(…))', () => {
-  const pages = between('// ===== Agents 页 =====', "let lastProxyNote = '';");
-  const bad = pages.match(/onclick="[a-zA-Z]+\('\$\{escAttr\((?!escJs\()/g);
-  assert.equal(bad, null, '还有只用 escAttr 的:' + JSON.stringify(bad));
-});

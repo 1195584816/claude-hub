@@ -1,6 +1,6 @@
 // Claude 总控客户端 - Electron 主进程
 const { app, BrowserWindow, ipcMain, shell, clipboard, dialog } = require('electron');
-const { spawn, exec } = require('child_process');
+const { spawn, exec, execFile } = require('child_process');
 const crypto = require('crypto');
 const fs = require('fs');
 const os = require('os');
@@ -13,9 +13,9 @@ const git = require('./lib/git');
 const P = require('./lib/paths');
 const discover = require('./lib/discover');
 const agentApi = require('./lib/agent-api');
-const agents = require('./lib/agents');
-const ckpt = require('./lib/checkpoints');
-const mcp = require('./lib/mcp');
+const ccname = require('./lib/ccname');
+// Claude Code 的会话号(UUID)。认新标签会话号、/clear 后跟随新会话号时校验用(原来借的是检查点模块里那份,检查点页 11-20 删了)
+const SID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const claudeCli = require('./lib/claude-cli');
 const sysProxy = require('./lib/sysproxy').create();
 const { writeJsonAtomic } = require('./lib/atomic-json');
@@ -276,10 +276,10 @@ if (process.argv.includes('--pty-test')) {
     createWindow();
     writePresence();
     auth.restore().then(pushAuth, () => {});   // 有登录令牌就悄悄续期;不等它,连不上也不影响启动
-    // 回退备份超过 14 天的清掉(最新 10 份不管多旧都留)。异步、不等它
-    ckpt.cleanBackups(P.REWIND_BACKUPS).catch(() => {});
-    // 清掉上次没删成的 MCP 参数文件(里面可能有明文密钥;进程中途被杀时会留下)。异步、不等它
-    mcp.cleanRuns(P.MCP_RUNS).catch(() => {});
+    // 总控里改过名、Claude Code 那边还叫默认编号的会话:空闲且没人在打字时自动 /rename 过去(见 ccAutoSync)
+    probeNameFlag();
+    setInterval(ccAutoSync, 20e3);
+    setInterval(ccFollowSids, 5e3);
     // 启动仅限本机的小九/自动化控制 API；失败不影响桌面总控正常使用。
     startAgentControl().catch(error => { agentState.error = String(error && error.message ? error.message : error); });
     // 盯完成流:有新完成 -> 推给界面 + 任务栏闪烁 + 刷新用量
@@ -340,14 +340,153 @@ ipcMain.handle('hub:memfile', (e, memSlug, file) => data.readMemoryFile(memSlug,
 ipcMain.handle('hub:feed', () => data.getFeed(FEED_UI));
 ipcMain.handle('hub:projdocs', (e, projPath) => data.getProjectDocs(projPath));
 ipcMain.handle('hub:renameSession', (e, sid, title) => {
-  try { return { ok: data.setCustomTitle(sid, title) }; } catch (err) { return { ok: false, msg: String(err) }; }
+  try {
+    const ok = data.setCustomTitle(sid, title);
+    if (ok) ccWant(sid, title);          // 同步给 Claude Code(等它空闲、输入框空的时候),见 ccAutoSync
+    return { ok };
+  } catch (err) { return { ok: false, msg: String(err) }; }
+});
+// 总控里刚改了名 / 点了卡片上的 @名字:记成「待同步」,马上检查一次(安全的话当场就改过去)
+const ccPending = {};
+function ccWant(sid, title) {
+  const n = ccname.wantName(title);
+  if (!sid) return;
+  if (n) ccPending[sid] = n; else delete ccPending[sid];
+  setTimeout(ccAutoSync, 800);
+}
+ipcMain.on('cc:want', (e, sid, title) => ccWant(sid, title));
+// 界面真打出去了才算一次(因为输入框有草稿没打的不算,不然两次拒绝就再也不同步了)
+ipcMain.on('cc:typed', (e, sid, name) => {
+  const a = ccAttempts[sid];
+  ccAttempts[sid] = { name, n: (a && a.name === name ? a.n : 0) + 1, at: Date.now() };
 });
 // Claude Code 自己那套会话名(会话之间互相喊的就是这个名字)。
 // 它存在 ~/.claude/sessions/<pid>.json 里,和总控台的会话备注名是两套东西:
 //   总控台改名  -> %APPDATA%\claude-hub\session-titles.json,只给他自己看
 //   /rename 改名 -> 这里的 name 字段,别的会话 @ 它用的就是这个
 // nameSource: derived=按目录名自动起的(comfyui-74 那种) / user=/rename 设的 / auto=模型起的
-ipcMain.handle('hub:ccSessions', () => {
+ipcMain.handle('hub:ccSessions', () => readCcSessions());
+// 总控里改过名、Claude Code 那边名字对不上的开着的会话:空闲、人没在里面打字时,往里输入 /rename(lib/ccname.js)。
+// 只写一句 /rename + 回车,不发 Ctrl+U —— pickSync 只挑「最后一下输入是回车 / 从没输入过」的,输入框里没有半截字
+const ccAttempts = {};
+let ccSyncing = false;
+// 整张进程表 { pid: 父 pid }(只在有候选要改名时才查一次,用来核「登记的 Claude 进程确实是这个终端里跑的」)
+function processParents() {
+  return new Promise(resolve => {
+    execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command',
+      'Get-CimInstance Win32_Process | ForEach-Object { "$($_.ProcessId) $($_.ParentProcessId)" }'],
+      { windowsHide: true, timeout: 20000, maxBuffer: 8 * 1024 * 1024 }, (err, out) => {
+        const map = {};
+        for (const line of String(out || '').split(/\r?\n/)) {
+          const m = line.trim().match(/^(\d+) (\d+)$/);
+          if (m) map[+m[1]] = +m[2];
+        }
+        resolve(map);
+      });
+  });
+}
+async function ccAutoSync() {
+  if (ccSyncing) return;
+  ccSyncing = true;
+  try {
+    const metas = [...termMeta.entries()].map(([id, m]) => ({ id, sid: m.sid, claude: m.claude }));
+    if (!metas.some(m => m.sid)) return;
+    const inputs = {};
+    for (const [id, v] of termInputs) inputs[id] = v;
+    const now = Date.now();
+    const cc = readCcSessions();
+    for (const sid of Object.keys(ccPending)) if (cc[sid] && cc[sid].name === ccPending[sid]) delete ccPending[sid];   // 已经对上了
+    const todo = ccname.pickSync({ metas, titles: data.loadTitles(), cc, inputs, attempts: ccAttempts, now, pending: ccPending });
+    if (!todo.length) return;
+    // 核进程:登记里的 pid 还活着,而且是这个终端 powershell 的子孙。旧记录、/clear 或 /resume 换了会话、认错标签 —— 都过不了这一关
+    const parents = await processParents();
+    // 查进程表要一秒多,这期间人可能开始打字了:再按最新的输入记录过一遍
+    const now2 = Date.now();
+    const ok = todo.filter(t => { const p = terms.get(t.id); return p && ccname.isDescendant(t.pid, p.pid, parents) && ccname.inputQuiet(termInputs.get(t.id), now2); });
+    for (const t of ok) {
+      const a = ccAttempts[t.sid];
+      // 只记「问过了」的时间(隔 RETRY_MS 才再问);次数等界面真打出去了再加(cc:typed)
+      ccAttempts[t.sid] = { name: t.name, n: a && a.name === t.name ? a.n : 0, at: now2 };
+    }
+    // 最后一道:交给界面读终端画面,确认 Claude 的输入框是空的才打字(界面那边见 <cc-input-empty>)
+    if (ok.length && win && !win.isDestroyed()) win.webContents.send('cc:tryRename', ok.map(t => ({ id: t.id, sid: t.sid, name: t.name })));
+  } catch {} finally { ccSyncing = false; }
+}
+// 本机 Claude Code 认不认 --name(老版本不认,加了会起不来)。启动时问一次 claude --help;问出来之前一律不加
+let ccNameSupported = false, ccNameProbe = null;
+function probeNameFlag() {
+  // -ExecutionPolicy Bypass 和真正开终端时一样:npm 装的人 PowerShell 里 claude 先解析到 claude.ps1,执行策略是 Restricted 会报错
+  ccNameProbe = new Promise(resolve => {
+    try {
+      execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', 'claude --help'],
+        { windowsHide: true, timeout: 30000, env: claudeCli.withClaudeOnPath(process.env), maxBuffer: 4 * 1024 * 1024 },
+        (err, out) => { ccNameSupported = /(^|\s)--name\b/.test(String(out || '')); resolve(); });
+    } catch { resolve(); }
+  });
+  return ccNameProbe;
+}
+// <cc-follow-sid>
+// 会话里 /clear 之后,同一个 Claude 进程换了新会话号(名字不变,2026-11-20 实测),总控却还记着旧的 ——
+// 这个标签的上下文占用、未读、会话列表就都对不上了。这里跟上:
+//   · 先把「终端 ↔ 它里面的 Claude 进程号」认下来。⚠️ 不能只按会话号认(2026-11-21 发版前复核实测):同一个会话号常常
+//     同时登记在好几个活着的 claude 进程上(外部窗口也 --resume 了同一个会话),按会话号 find 会认到别人的进程上,
+//     那个进程一 /clear,这个标签就被换成别人的会话。所以:登记里会话号对得上、而且顺着父进程能走到这个终端的 powershell,才认。
+//     要查进程表(一秒多),只在有还没认出来的终端时才查。
+//   · 认下来以后每 5 秒看一眼:这个 pid 登记的会话号变了 → 改 termMeta.sid、告诉界面。
+//     总控名抄给新会话号的条件:登记里的名字和换号前一样(/clear 保留名字;会话里 /resume 到别的对话名字会跟着变,那不是同一件事,不抄)
+const termCcPid = new Map();      // 终端 id → { pid, name }
+let ccFollowBusy = false;
+function readCcByPid() {
+  const dir = path.join(os.homedir(), '.claude', 'sessions');
+  const out = {};
+  let files = [];
+  try { files = fs.readdirSync(dir).filter(f => f.endsWith('.json')); } catch { return out; }
+  for (const f of files) {
+    try { const j = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8')); if (j && j.pid && j.sessionId) out[j.pid] = j; } catch {}
+  }
+  return out;
+}
+async function ccFollowSids() {
+  if (ccFollowBusy) return;
+  ccFollowBusy = true;
+  try {
+    if (!termMeta.size) return;
+    const byPid = readCcByPid();
+    // 还没认出 Claude 进程的终端:有候选才查一次进程表
+    const need = [...termMeta].filter(([id, m]) => m.claude && m.sid && !termCcPid.has(id));
+    if (need.length) {
+      const cands = Object.values(byPid);
+      if (need.some(([, m]) => cands.some(j => j.sessionId === m.sid))) {
+        const parents = await processParents();
+        for (const [id, m] of need) {
+          const p = terms.get(id);
+          const hit = p && cands.find(j => j.sessionId === m.sid && ccname.isDescendant(j.pid, p.pid, parents));
+          if (hit) termCcPid.set(id, { pid: hit.pid, name: hit.name || '' });
+        }
+      }
+    }
+    for (const [id, m] of termMeta) {
+      const known = termCcPid.get(id);
+      if (!m.claude || !m.sid || !known) continue;
+      const j = byPid[known.pid];
+      if (!j) continue;
+      if (!SID_RE.test(String(j.sessionId)) || j.sessionId === m.sid) { known.name = j.name || known.name; continue; }
+      const oldSid = m.sid;
+      const sameName = !!j.name && j.name === known.name;      // 名字没变 = /clear;变了 = /resume 到别的对话
+      m.sid = j.sessionId;
+      known.name = j.name || known.name;
+      if (sameName) {
+        try {
+          const titles = data.loadTitles();
+          if (titles[oldSid] && !titles[m.sid]) data.setCustomTitle(m.sid, titles[oldSid]);
+        } catch {}
+      }
+      if (win && !win.isDestroyed()) win.webContents.send('term:sidChanged', { id, sid: m.sid, oldSid });
+    }
+  } catch {} finally { ccFollowBusy = false; }
+}
+// </cc-follow-sid>
+function readCcSessions() {
   const dir = path.join(os.homedir(), '.claude', 'sessions');
   const out = {};
   let files = [];
@@ -361,10 +500,17 @@ ipcMain.handle('hub:ccSessions', () => {
     if (old && (old.updatedAt || 0) >= (j.updatedAt || 0)) continue;
     out[j.sessionId] = {
       name: j.name, nameSource: j.nameSource || '', pid: j.pid || 0,
-      status: j.status || '', cwd: j.cwd || '', updatedAt: j.updatedAt || 0
+      status: j.status || '', cwd: j.cwd || '', updatedAt: j.updatedAt || 0, startedAt: j.startedAt || 0
     };
   }
   return out;
+}
+// 还没认出会话号的新标签,在 Claude Code 登记里对一下是哪个(只为了标签上先显示「@默认编号」),见 ccname.matchUnbound
+ipcMain.handle('hub:termCcNames', () => {
+  try {
+    const metas = [...termMeta.entries()].map(([id, m]) => ({ id, sid: m.sid, projPath: m.projPath, spawnAt: m.spawnAt, claude: m.claude }));
+    return ccname.matchUnbound(metas, readCcSessions());
+  } catch { return {}; }
 });
 ipcMain.handle('hub:usage', () => { try { return usage.aggregates(); } catch { return null; } });
 // 当前会话上下文占用(瞬时值,离自动压缩还有多远)。usage.js 里带 2 秒缓存,顶栏定时调不会反复读盘。
@@ -401,165 +547,9 @@ ipcMain.handle('hub:openDoc', () => { try { shell.openPath(path.join(__dirname, 
 ipcMain.handle('hub:readCmd', (e, scope, name, projPath) => data.readCommand(scope, name, projPath));
 ipcMain.handle('hub:writeCmd', (e, scope, name, c, projPath) => data.writeCommand(scope, name, c, projPath));
 ipcMain.handle('hub:delCmd', (e, scope, name, projPath) => data.deleteCommand(scope, name, projPath));
+ipcMain.handle('hub:mcpList', (e, p) => { try { return data.listMcp(p); } catch { return []; } });
 ipcMain.handle('hub:getPrompts', () => data.getPrompts());
 ipcMain.handle('hub:savePrompts', (e, l) => data.savePrompts(l));
-// 自定义 Agent(和上面 agent:* 的小九 API 是两回事)。数据只在 APP_DATA,不碰 ~/.claude。
-ipcMain.handle('agents:list', () => agents.load(P.AGENTS));
-ipcMain.handle('agents:save', async (e, list) => { try { return await agents.save(P.AGENTS, list); } catch (err) { return { ok: false, msg: String(err) }; } });
-// MCP 页:读配置文件给界面看;增删一律走官方 claude mcp add-json / remove(lib/mcp.js)。env/headers 的值不出主进程
-const mcpCwd = (p) => (typeof p === 'string' && path.isAbsolute(p)) ? p : undefined;
-// cwd 没给(没选项目)就在用户目录跑,不落到 Electron 自己的工作目录里
-async function mcpRun(args, projPath, timeout, cancel) {
-  const { env } = await termEnv();
-  return mcp.runClaude(args, { cwd: mcpCwd(projPath) || os.homedir(), env: claudeCli.withClaudeOnPath(env), runDir: P.MCP_RUNS, timeout, cancel });
-}
-ipcMain.handle('mcp:config', async (e, projPath) => {
-  try { return Object.assign({ ok: true }, await mcp.readConfig(P.CLAUDE_JSON, mcpCwd(projPath))); }
-  catch (err) { return { ok: false, msg: String(err && err.message || err) }; }
-});
-// 检测连接 = claude mcp list,它会把每个服务器真的启动一遍(包括项目 .mcp.json 里的)。
-// 所以只在用户点「检测连接」时跑;同一时间只跑一次,开新检测 / 换项目前先结束上一次
-let mcpStatusRun = null;
-ipcMain.handle('mcp:statusCancel', () => { if (mcpStatusRun) { try { mcpStatusRun.kill(); } catch {} } return { ok: true }; });
-ipcMain.handle('mcp:status', async (e, projPath) => {
-  if (mcpStatusRun) { try { mcpStatusRun.kill(); } catch {} }
-  const cancel = {};
-  mcpStatusRun = cancel;
-  try {
-    const r = await mcpRun(['mcp', 'list'], projPath, 90000, cancel);
-    if (r.canceled) return { ok: false, canceled: true, msg: '已取消' };
-    return { ok: true, list: mcp.parseList(r.out), timedOut: r.timedOut, raw: r.ok ? '' : r.out.slice(-600) };
-  } catch (err) { return { ok: false, msg: String(err && err.message || err) }; }
-  finally { if (mcpStatusRun === cancel) mcpStatusRun = null; }
-});
-// items: [{ name, scope, form? | json? }] —— 一条条加,每条报结果
-ipcMain.handle('mcp:add', async (e, req) => {
-  const results = [];
-  try {
-    const scope = req && req.scope;
-    mcp.checkProjFor(scope, req && req.projPath);
-    let items;
-    if (req && req.mode === 'json') items = mcp.parsePasted(req.json, req.name).map(x => ({ name: x.name, cfg: x.cfg }));
-    else items = [{ name: req && req.name, cfg: mcp.buildConfig((req && req.form) || {}) }];
-    for (const it of items) {
-      let args;
-      try { mcp.checkProjectSecrets(scope, it.name, it.cfg); args = mcp.addArgs(it.name, scope, it.cfg); } catch (err) { results.push({ name: it.name, ok: false, msg: err.message }); continue; }
-      const r = await mcpRun(args, req.projPath, 60000);
-      results.push({ name: it.name, ok: r.ok, msg: r.out.slice(-400) });
-    }
-    return { ok: results.every(r => r.ok), results };
-  } catch (err) { return { ok: false, msg: String(err && err.message || err), results }; }
-});
-ipcMain.handle('mcp:remove', async (e, name, scope, projPath) => {
-  try { mcp.checkProjFor(scope, projPath); const r = await mcpRun(mcp.removeArgs(name, scope), projPath, 60000); return { ok: r.ok, msg: r.out.slice(-400) }; }
-  catch (err) { return { ok: false, msg: String(err && err.message || err) }; }
-});
-ipcMain.handle('mcp:desktop', async () => {
-  const r = await mcp.readDesktop(P.CLAUDE_DESKTOP_CFG);
-  return r.ok ? { ok: true, servers: r.servers.map(s => s.sum) } : r;
-});
-ipcMain.handle('mcp:importDesktop', async (e, names, scope, projPath) => {
-  try { mcp.checkProjFor(scope, projPath); } catch (err) { return { ok: false, msg: err.message, results: [] }; }
-  const r = await mcp.readDesktop(P.CLAUDE_DESKTOP_CFG);
-  if (!r.ok) return r;
-  const results = [];
-  for (const s of r.servers.filter(x => Array.isArray(names) && names.includes(x.name))) {
-    let args;
-    try { mcp.checkProjectSecrets(scope, s.name, s.cfg); args = mcp.addArgs(s.name, scope, s.cfg); } catch (err) { results.push({ name: s.name, ok: false, msg: err.message }); continue; }
-    const x = await mcpRun(args, projPath, 60000);
-    results.push({ name: s.name, ok: x.ok, msg: x.out.slice(-400) });
-  }
-  return { ok: results.every(x => x.ok), results };
-});
-// 检查点:读 Claude Code 自己的文件检查点(只读);回退走官方 claude --rewind-files,回退前先备份,能撤销
-ipcMain.handle('ckpt:list', async (e, slug, sid) => {
-  try { return Object.assign({ ok: true }, await ckpt.list(P.CLAUDE_PROJECTS, P.CLAUDE_HOME, slug, sid)); }
-  catch (err) { return { ok: false, msg: err && err.code === 'ENOENT' ? '找不到这个会话的记录' : String(err && err.message || err) }; }
-});
-ipcMain.handle('ckpt:diff', async (e, slug, sid, id, key) => {
-  try { return await ckpt.diff(P.CLAUDE_PROJECTS, P.CLAUDE_HOME, slug, sid, id, String(key || ''), P.CKPT_TMP); }
-  catch (err) { return '(没能生成对比:' + String(err && err.message || err) + ')'; }
-});
-// 回退 / 撤销会写、会删用户项目里的文件,同一个会话同一时间只许做一件(按会话加锁)
-const ckptBusy = new Set();
-// 会话还在跑就不许动它的文件:总控里开着(包括同项目里还没认出会话号的新标签),或者会话记录最近 5 分钟有写入(外部终端 / 手机上在跑)
-async function ckptRunningMsg(slug, sid, since = 0) {
-  const open = ckpt.openInHubMsg([...termMeta.values()], slug, sid, data.slugOf);
-  if (open) return open;
-  if (await ckpt.sessionBusy(P.CLAUDE_PROJECTS, P.CLAUDE_HOME, slug, sid, Date.now(), ckpt.BUSY_MS, since)) return '这个会话 5 分钟内还有写入,可能正在别处运行。等它停下来再回退。';
-  return '';
-}
-// 回退前先看会动哪些文件,给确认框列出来;拿不准就在这一步拒绝
-ipcMain.handle('ckpt:plan', async (e, slug, sid, id) => {
-  try {
-    const running = await ckptRunningMsg(slug, sid);
-    const plan = await ckpt.planRewind(P.CLAUDE_PROJECTS, P.CLAUDE_HOME, slug, sid, id);
-    return Object.assign(plan, { running });
-  } catch (err) { return { ok: false, msg: String(err && err.message || err) }; }
-});
-// confirmed:用户在确认框里看到的文件清单。这时候重新算一遍,多出没确认过的文件就不做,让人重新确认
-ipcMain.handle('ckpt:rewind', async (e, slug, sid, id, confirmed) => {
-  if (ckptBusy.has(sid)) return { ok: false, msg: '这个会话正在回退或撤销,等它做完' };
-  ckptBusy.add(sid);
-  let bid = '';
-  try {
-    const running = await ckptRunningMsg(slug, sid);
-    if (running) return { ok: false, msg: running };
-    const plan = await ckpt.planRewind(P.CLAUDE_PROJECTS, P.CLAUDE_HOME, slug, sid, id);
-    if (!plan.ok) return { ok: false, msg: plan.msg };
-    const ok = new Set((Array.isArray(confirmed) ? confirmed : []).map(p => String(p).toLowerCase()));
-    if (plan.changes.some(c => !ok.has(c.path.toLowerCase()))) return { ok: false, replan: true, msg: '确认之后文件又变了,请重新确认要回退的文件' };
-    if (!plan.changes.length) return { ok: false, msg: '文件已经是那条提问之前的样子,不用回退' };
-    const cwd = await ckpt.sessionCwd(P.CLAUDE_PROJECTS, P.CLAUDE_HOME, slug, sid);
-    bid = await ckpt.backupBeforeRewind(P.CLAUDE_PROJECTS, P.CLAUDE_HOME, slug, sid, id, P.REWIND_BACKUPS);
-    const { env } = await termEnv();
-    const r = await ckpt.runRewind(sid, id, cwd, claudeCli.withClaudeOnPath(env));
-    const backupDir = path.join(P.REWIND_BACKUPS, bid);
-    // 只有 claude 在动手前就拒绝了(untouched)才能确定文件没动、删掉备份;
-    // 超时 / 中途出错 / 看不懂(unsure)文件可能已经回退了一部分 —— 备份留着,界面照样给「撤销」
-    if (r.state === 'untouched') {
-      try { await fs.promises.rm(backupDir, { recursive: true, force: true }); } catch {}
-      return { ok: false, msg: r.msg || '回退没有成功' };
-    }
-    // 记下回退后的样子:撤销时认得出「回退之后又被改过」的文件,不去覆盖/删除它们。
-    // 记不成的话撤销时一律不删文件(只放回备份里有的),界面会说明
-    let recorded = true;
-    try {
-      const jsonlMtime = await ckpt.sessionMtime(P.CLAUDE_PROJECTS, P.CLAUDE_HOME, slug, sid);
-      await ckpt.recordAfterRewind(P.REWIND_BACKUPS, bid, { jsonlMtime });
-    } catch { recorded = false; }
-    if (r.state === 'unsure') return { ok: false, unsure: true, bid, backupDir, recorded, msg: r.msg || '没能确认回退结果' };
-    return { ok: true, bid, msg: r.msg, backupDir, recorded };
-  } catch (err) { return { ok: false, msg: String(err && err.message || err) }; }
-  finally { ckptBusy.delete(sid); }
-});
-ipcMain.handle('ckpt:undo', async (e, bid) => {
-  let sid = '';
-  try {
-    const m = await ckpt.readManifest(P.REWIND_BACKUPS, bid);
-    sid = String(m.sid || '');
-    if (!ckpt.UUID.test(sid)) return { ok: false, msg: '备份清单不对' };
-    if (ckptBusy.has(sid)) { sid = ''; return { ok: false, msg: '这个会话正在回退或撤销,等它做完' }; }
-    ckptBusy.add(sid);
-    // 回退本身会写一笔会话记录,只有比回退后更新的写入才算「又在跑了」;老备份没有 slug 就只看总控里开没开着
-    const running = m.slug ? await ckptRunningMsg(m.slug, sid, Number(m.jsonlMtime) || 0).catch(() => '')
-      : ckpt.openInHubMsg([...termMeta.values()], '', sid, data.slugOf);
-    if (running) return { ok: false, msg: running };
-    return Object.assign({ ok: true }, await ckpt.undoRewind(P.REWIND_BACKUPS, bid));
-  } catch (err) { return { ok: false, msg: String(err && err.message || err) }; }
-  finally { if (sid) ckptBusy.delete(sid); }
-});
-// 运行:按 id 从磁盘取那一条(不信界面传来的内容),写参数文件,返回终端要执行的命令,顺手记一次运行
-ipcMain.handle('agents:launch', async (e, id, projPath) => {
-  try {
-    const cur = await agents.load(P.AGENTS);
-    const a = cur.list.find(x => x.id === id);
-    if (!a) return { ok: false, msg: cur.broken ? cur.msg : '没有这个 Agent' };
-    const cmd = await agents.writeLaunch(P.AGENT_RUNS, a);
-    try { await agents.recordRun(P.AGENTS, id, projPath); } catch {}
-    return { ok: true, cmd };
-  } catch (err) { return { ok: false, msg: String(err) }; }
-});
 ipcMain.handle('hub:usageDaily', () => { try { return usage.dailySeries(30); } catch { return []; } });
 ipcMain.handle('hub:exportCsv', async () => {
   try {
@@ -631,7 +621,7 @@ const mobileBridge = {
     };
   },
   history(id) { const m = termMeta.get(id); return m ? m.buf : ''; },
-  write(id, d) { const p = terms.get(id); if (p) { try { p.write(d); } catch {} } },
+  write(id, d) { const p = terms.get(id); if (p) { noteInput(id, d); try { p.write(d); } catch {} } },
   async open(projPath, short, sid, title) {
     if (!pty || !projPath) return { ok: false };
     // 先把要等的东西(终端环境)等好,再做「查重 → 开」。这两步之间不许有 await:
@@ -762,6 +752,7 @@ ipcMain.handle('hub:checkUpdate', () => new Promise((resolve) => {
 ipcMain.handle('hub:projfile', (e, projPath, rel) => data.readProjectFile(projPath, rel));
 
 ipcMain.handle('hub:openCli', async (e, projPath, title, sid) => {
+  // 外部终端(wt)不加 --name:wt 把命令里的 ; 当成「另开一个标签」的分隔符,名字里带 ; 会把命令拆坏
   const cmd = sid ? `claude --resume "${sid}"` : 'claude';
   try {
     // 外部终端这条退路同样要跟着系统代理走、同样要补 PATH(envFor 永不抛)
@@ -790,7 +781,7 @@ ipcMain.handle('hub:pathInfo', async (e, p) => {
   const one = async (x) => {
     try {
       const st = await fs.promises.stat(x);
-      return { exists: true, isDir: st.isDirectory(), isFile: st.isFile(), path: x };
+      return { exists: true, isDir: st.isDirectory(), isFile: st.isFile(), path: x, mtimeMs: st.mtimeMs };
     } catch { return null; }
   };
   // 传数组 = 候选清单(长的在前),返回第一个真的存在的。
@@ -806,6 +797,47 @@ ipcMain.handle('hub:pathInfo', async (e, p) => {
   }
   return (await one(String(p || ''))) || { exists: false, isDir: false, isFile: false, path: String(p || '') };
 });
+
+// <drag-file>
+// 终端里路径旁的小工具条:「打开所在文件夹」和「拖到微信」(2026-11-19 三月要的)。
+// 拖文件走 Electron 的 webContents.startDrag —— 和从资源管理器里拖出去是同一种数据(文件列表),
+// 微信、QQ、桌面、别的文件夹都认。只许拖真存在的普通文件(绝对路径),目录不拖。
+// startDrag 一定要带图标(空图标会抛错):先用系统给这个文件的图标,拿不到就用总控程序(exe)的图标。
+// 图标在鼠标停到路径上时就先取好(hub:prepDrag),真拖的时候不用再等。
+const dragIcons = new Map();
+async function dragFileOk(p) {
+  if (typeof p !== 'string' || !path.isAbsolute(p)) return false;
+  try { return (await fs.promises.stat(p)).isFile(); } catch { return false; }
+}
+async function dragIcon(p) {
+  if (dragIcons.has(p)) return dragIcons.get(p);
+  let img = null;
+  try { img = await app.getFileIcon(p, { size: 'normal' }); } catch {}
+  // 兜底用总控程序自己的图标:build\icon.ico 不会被打进安装版(electron-builder 把 build 当素材目录),exe 一定在
+  if (!img || img.isEmpty()) { try { img = await app.getFileIcon(process.execPath, { size: 'normal' }); } catch {} }
+  if (!img || img.isEmpty()) return null;
+  if (dragIcons.size > 64) dragIcons.clear();
+  dragIcons.set(p, img);
+  return img;
+}
+ipcMain.handle('hub:prepDrag', async (e, p) => {
+  if (!(await dragFileOk(p))) return false;
+  return !!(await dragIcon(p));
+});
+ipcMain.on('hub:dragFile', async (e, p) => {
+  if (!(await dragFileOk(p))) return;
+  const icon = await dragIcon(p);
+  if (!icon) return;
+  try { e.sender.startDrag({ file: p, icon }); } catch {}
+});
+// 在资源管理器里打开所在文件夹并选中它(目录也行:打开上一级、选中这个目录)
+ipcMain.handle('hub:showInFolder', async (e, p) => {
+  if (typeof p !== 'string' || !path.isAbsolute(p)) return false;
+  try { await fs.promises.stat(p); } catch { return false; }
+  shell.showItemInFolder(p);
+  return true;
+});
+// </drag-file>
 
 ipcMain.handle('hub:getNotifyCfg', () => {
   // 补全默认值再给界面,省得渲染进程到处写 (c.telegram && c.telegram.xxx)
@@ -870,6 +902,8 @@ function termEnv() {
 }
 async function spawnTerm(projPath, title, sid, cmdOverride) {
   if (!pty) return { ok: false, msg: 'node-pty 未就绪' };
+  // 恢复会话要带 --name 的话,先等「本机认不认 --name」问出来(最多 4 秒,问不出来就不加)
+  if (sid && ccNameProbe) await Promise.race([ccNameProbe, new Promise(r => setTimeout(r, 4000))]);
   return spawnTermWith(await termEnv(), projPath, title, sid, cmdOverride);
 }
 // ⚠️ 这个函数必须保持同步(里面不许有 await)。调用方靠「查有没有同一个会话 → 立刻登记进 termMeta」
@@ -879,7 +913,8 @@ function spawnTermWith(px, projPath, title, sid, cmdOverride) {
   if (!pty) return { ok: false, msg: 'node-pty 未就绪' };
   try {
     const id = 't' + Date.now() + Math.floor(Math.random() * 1e4);
-    const cmd = cmdOverride ? cmdOverride : (sid ? `claude --resume "${sid}"` : 'claude');
+    // 总控里给这个会话起过名的,带上 --name 让 Claude Code 也叫这个名字(别的会话靠它互相找),见 lib/ccname.js
+    const cmd = ccname.withName(cmdOverride ? cmdOverride : (sid ? `claude --resume "${sid}"` : 'claude'), sid ? data.loadTitles()[sid] : '', ccNameSupported);
     // 官方安装器把 claude 装到 用户目录\.local\bin 但不加 PATH —— 这里补上(追加在末尾,已经找得到的电脑行为不变)
     // 只在 Win10 上用 node-pty 自带的新版 ConPTY(conpty.dll + OpenConsole.exe),见 lib/conpty.js。
     // Win10 自带的 ConPTY 老旧:Claude Code 输出滚出屏幕的行直接丢掉(xterm 里没有滚动历史,滚轮翻不上去),
@@ -892,7 +927,9 @@ function spawnTermWith(px, projPath, title, sid, cmdOverride) {
     if (BUNDLED_CONPTY) { try { p = spawnPs(true); } catch { p = spawnPs(false); } }
     else p = spawnPs(false);
     terms.set(id, p);
-    termMeta.set(id, { projPath, short: title || '', sid: sid || '', title: title || '', buf: '' });
+    // claude:这个标签跑的是不是 Claude 会话(codex / gemini / claude update 之类不参与认会话号、自动改名)
+    const isClaude = /^claude(\s|$)/.test(cmd) && !/^claude (update|install)\b/.test(cmd);
+    termMeta.set(id, { projPath, short: title || '', sid: sid || '', title: title || '', buf: '', spawnAt: Date.now(), claude: isClaude });
     p.onData(d => {
       if (win && !win.isDestroyed()) win.webContents.send('term:data', { id, data: d });
       const m = termMeta.get(id);
@@ -900,7 +937,7 @@ function spawnTermWith(px, projPath, title, sid, cmdOverride) {
       try { mobile.pushTermData(id, d); } catch {}
     });
     p.onExit(ev => {
-      terms.delete(id); termMeta.delete(id);
+      terms.delete(id); termMeta.delete(id); termInputs.delete(id); termCcPid.delete(id);
       if (win && !win.isDestroyed()) win.webContents.send('term:exit', { id, code: ev.exitCode });
       try { mobile.pushEvent('exit', { id }); } catch {}
     });
@@ -908,10 +945,16 @@ function spawnTermWith(px, projPath, title, sid, cmdOverride) {
   } catch (err) { return { ok: false, msg: String(err) }; }
 }
 ipcMain.handle('term:open', (e, projPath, title, sid, cmdOverride) => spawnTerm(projPath, title, sid, cmdOverride));
-ipcMain.on('term:input', (e, id, data) => { const p = terms.get(id); if (p) p.write(data); });
+// 每个终端最后一次人手输入:什么时候、最后一下是不是回车(自动 /rename 要靠它判断人在不在打字,见 ccAutoSync)
+const termInputs = new Map();
+function noteInput(id, d) {
+  if (ccname.isAutoReply(d)) return;      // 终端自己回 Claude Code 的查询,不是人在打字
+  termInputs.set(id, { at: Date.now(), enter: ccname.endsWithEnter(d) });
+}
+ipcMain.on('term:input', (e, id, data) => { const p = terms.get(id); if (p) { noteInput(id, data); p.write(data); } });
 ipcMain.on('term:resize', (e, id, cols, rows) => { const p = terms.get(id); try { if (p) p.resize(cols, rows); } catch {} });
-// 新开的会话一开始没有会话号,界面认领到之后告诉这边(检查点回退要靠它判断「会话是不是在总控里开着」)。只填空的,不改已有的
-ipcMain.on('term:bindSid', (e, id, sid) => { const m = termMeta.get(id); if (m && !m.sid && ckpt.UUID.test(String(sid || ''))) m.sid = String(sid); });
+// 新开的会话一开始没有会话号,界面认领到之后告诉这边(会话名自动同步、/clear 跟随都靠它)。只填空的,不改已有的
+ipcMain.on('term:bindSid', (e, id, sid) => { const m = termMeta.get(id); if (m && !m.sid && SID_RE.test(String(sid || ''))) m.sid = String(sid); });
 ipcMain.on('term:kill', (e, id) => { const p = terms.get(id); if (p) { try { p.kill(); } catch {} terms.delete(id); } });
 // 手动选图片文件(剪贴板读不到时的可靠兜底)
 ipcMain.handle('clip:pickImage', async () => {

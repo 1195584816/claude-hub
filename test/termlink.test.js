@@ -322,3 +322,24 @@ test('file:line:col 这种最常见的输出:只划到文件名为止', async ()
   assert.equal(r.length, 1);
   assert.equal(r[0].cover, P);
 });
+
+// 2026-11-19:ConPTY 在宽字符排到行尾放不下时,最后一格补一个【真】空格、把字挪到下一行。
+// 不扔掉这个补位空格,「…\测试 视频.mp4」在空格处断开,路径既点不了也上不了色。
+test('ConPTY 行尾补位空格:宽字符折到下一行时,路径照样连成一条', async () => {
+  const p = 'F:\\a\\测试视频.mp4';
+  DISK.add(p);
+  const row1 = 'X F:\\a\\测试 ';                   // 最后一格是补位空格
+  const cols = width(row1);
+  const r = await links([{ text: row1 }, { text: '视频.mp4 说明', wrapped: true }], cols, 1);
+  assert.equal(r.length, 1);
+  assert.equal(r[0].text, p);
+  assert.equal(r[0].range.start.y, 1);
+  assert.equal(r[0].range.end.y, 2);
+});
+
+test('ConPTY 行尾补位空格:下一行开头是窄字符时,那个空格是真内容,不吞', async () => {
+  DISK.add('F:\\a\\xy.txt');
+  const row1 = 'X F:\\a\\x ';
+  const r = await links([{ text: row1 }, { text: 'y.txt', wrapped: true }], width(row1), 1);
+  assert.ok(!r.some(l => l.text === 'F:\\a\\xy.txt'), JSON.stringify(r.map(l => l.text)));
+});
