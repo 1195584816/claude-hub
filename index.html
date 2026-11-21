@@ -1730,10 +1730,19 @@ function bindEdges() {
 
 // ===== 项目分组 =====
 let projGroup = store.get('hub_projgroup', {});   // path -> 分组名
-let grpClosed = store.get('hub_grpclosed', {});   // 分组名 -> true(收起)
+let grpClosed = store.get('hub_grpclosed', {});   // 分组名 -> true(收起)/ false(展开);没记过 = 默认收起
 const groupOf = p => projGroup[p.path] || p.line || '未分组';
+// 分组默认收起(2026-11-21 三月:「全部项目别默认展开」)。手动点过的按他点的;没点过的收起,
+// 但当前正在用的项目所在的组没被他明确收起时自动撑开,免得一打开总控就看不见自己正在用的项目
+function grpIsClosed(name, hasCur) {
+  const v = grpClosed[name];
+  if (v === true) return true;
+  if (v === false) return false;
+  return !hasCur;
+}
 function toggleGrp(name) {
-  grpClosed[name] = !grpClosed[name];
+  const hasCur = projects.some(p => p.path === curPath && groupOf(p) === name);
+  grpClosed[name] = !grpIsClosed(name, hasCur);
   store.set('hub_grpclosed', grpClosed);
   renderProjects();
 }
@@ -2038,7 +2047,7 @@ function renderProjects() {
   el.innerHTML = ltabsHtml() + filterBox('projFilter', projFilter, '筛项目 / 改过名的会话…') +
     `<div class="secrow"><span class="sectlabel">项目 Projects</span><span class="sechint">拖动排序 · 右键分组</span></div>` +
     groups.map(g => {
-      const closed = !!grpClosed[g.name];
+      const closed = grpIsClosed(g.name, g.items.some(p => p.path === curPath));
       const un = g.items.reduce((n, p) => n + unreadOf(p).cnt, 0);
       return `<div class="pgrp">
         <div class="pgrph${closed ? ' closed' : ''}" onclick="toggleGrp('${escJs(g.name)}')" oncontextmenu="grpMenu('${escJs(g.name)}', event)" title="点击展开/收起 · 右键改名等">
@@ -3997,9 +4006,9 @@ function grpMenu(name, ev) {
   const items = projects.filter(p => groupOf(p) === name);
   showCtx(ev.clientX, ev.clientY, [
     { act: 'rn', icon: 'pen', label: '分组改名…', run: () => renameGroup(name) },
-    { act: 'tg', icon: 'chev', label: grpClosed[name] ? '展开本组' : '收起本组', run: () => toggleGrp(name) },
+    { act: 'tg', icon: 'chev', label: grpIsClosed(name, projects.some(p => p.path === curPath && groupOf(p) === name)) ? '展开本组' : '收起本组', run: () => toggleGrp(name) },
     { sep: true },
-    { act: 'exp', icon: 'layers', label: '展开全部分组', run: () => { grpClosed = {}; store.set('hub_grpclosed', grpClosed); renderProjects(); } },
+    { act: 'exp', icon: 'layers', label: '展开全部分组', run: () => { [...new Set(projects.map(groupOf))].forEach(g => grpClosed[g] = false); store.set('hub_grpclosed', grpClosed); renderProjects(); } },
     { act: 'col', icon: 'layers', label: '收起全部分组', run: () => { [...new Set(projects.map(groupOf))].forEach(g => grpClosed[g] = true); store.set('hub_grpclosed', grpClosed); renderProjects(); } },
     { sep: true },
     { act: 'mv', icon: 'folder', label: `把本组 ${items.length} 个项目移走…`, run: () => moveWholeGroup(name) },
@@ -4014,7 +4023,7 @@ function colMenu(ev) {
     { act: 'new', icon: 'plus', label: '新建项目', run: () => newProject() },
     { act: 'imp', icon: 'folder', label: '导入已有项目…', run: () => openImport() },
     { sep: true },
-    { act: 'exp', icon: 'layers', label: '展开全部分组', run: () => { grpClosed = {}; store.set('hub_grpclosed', grpClosed); renderProjects(); } },
+    { act: 'exp', icon: 'layers', label: '展开全部分组', run: () => { [...new Set(projects.map(groupOf))].forEach(g => grpClosed[g] = false); store.set('hub_grpclosed', grpClosed); renderProjects(); } },
     { act: 'col', icon: 'layers', label: '收起全部分组', run: () => { [...new Set(projects.map(groupOf))].forEach(g => grpClosed[g] = true); store.set('hub_grpclosed', grpClosed); renderProjects(); } },
     { sep: true },
     { act: 'rf', icon: 'clock', label: '刷新项目列表', run: async () => { projects = await hub.projects(); renderProjects(); hubToast('已刷新'); } }
@@ -4027,7 +4036,7 @@ async function renameGroup(oldName) {
   ], '保存');
   if (!v || !v[0] || v[0] === oldName) return;
   for (const p of items) { projGroup[p.path] = v[0]; await hub.updateProject(p.path, { line: v[0] }); }
-  if (grpClosed[oldName]) { grpClosed[v[0]] = true; delete grpClosed[oldName]; }
+  if (oldName in grpClosed) { grpClosed[v[0]] = grpClosed[oldName]; delete grpClosed[oldName]; }
   store.set('hub_projgroup', projGroup);
   store.set('hub_grpclosed', grpClosed);
   projects = await hub.projects();
